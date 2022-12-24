@@ -20,6 +20,7 @@ enum class Mode {
     NORMAL,
     COMMAND,
     SEARCH,
+    RENAME,
 };
 
 enum class EKey {
@@ -29,12 +30,14 @@ enum class EKey {
     SHIFT,
     CONTROL,
     COLON,
+    C,
     D,
     G,
     H,
     J,
     K,
     L,
+    W,
 
     COUNT,
 };
@@ -51,6 +54,7 @@ enum class ENormalOperation {
     SELECT_FIRST,
     SELECT_LAST,
     DELETE_FILE,
+    RENAME,
 
     COUNT,
 };
@@ -149,5 +153,5 @@ private:
     QLineEdit* commandLine;
     QFileSystemModel* model;
     NormalMode normalMode;
-    bool isInSearch = false;
+    Mode mode = Mode::NORMAL;
 };

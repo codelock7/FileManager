@@ -48,6 +48,7 @@ MainWindow::MainWindow(QWidget *parent)
     normalMode.addCommand({ENormalOperation::SELECT_FIRST, {EKey::G, EKey::G}});
     normalMode.addCommand({ENormalOperation::SELECT_LAST, {EKey::SHIFT, EKey::G}});
     normalMode.addCommand({ENormalOperation::DELETE_FILE, {EKey::SHIFT, EKey::D}});
+    normalMode.addCommand({ENormalOperation::RENAME, {EKey::C, EKey::W}});
 }
 
 MainWindow::~MainWindow()
@@ -104,7 +105,12 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
     }
 
     switch (keyEvent->key()) {
-    case Qt::Key_Q:
+    case Qt::Key_C:
+        normalMode.addKey(EKey::C);
+        break;
+
+    case Qt::Key_D:
+        normalMode.addKey(EKey::D);
         break;
 
     case Qt::Key_G:
@@ -127,6 +133,10 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
         normalMode.addKey(EKey::K);
         break;
 
+    case Qt::Key_W:
+        normalMode.addKey(EKey::W);
+        break;
+
     case Qt::Key_Escape:
         normalMode.reset();
         filesView->setFocus();
@@ -136,13 +146,9 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
         normalMode.addKey(EKey::COLON);
         break;
 
-    case Qt::Key_D:
-        normalMode.addKey(EKey::D);
-        break;
-
     case Qt::Key_Slash:
         commandLine->setFocus();
-        isInSearch = true;
+        mode = Mode::SEARCH;
         return true;
 
     default:
@@ -177,6 +183,11 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
             break;
         case ENormalOperation::DELETE_FILE:
             deleteFile();
+            break;
+        case ENormalOperation::RENAME:
+            mode = Mode::RENAME;
+            commandLine->setFocus();
+            commandLine->setText(model->fileName(getCurrentIndex()));
             break;
         }
         normalMode.reset();
@@ -252,11 +263,21 @@ void MainWindow::deleteFile()
 
 void MainWindow::handleCommand()
 {
-    if (isInSearch) {
-        isInSearch = false;
+    switch (mode) {
+    case Mode::SEARCH:
         getView()->keyboardSearch(commandLine->text());
         commandLine->clear();
         filesView->setFocus();
+        mode = Mode::NORMAL;
+        return;
+    case Mode::RENAME:
+        const QFileInfo& info = model->fileInfo(getCurrentIndex());
+        if (const QString& newName = commandLine->text();
+                !newName.isEmpty())
+            QFile(info.filePath()).rename(info.path() + QDir::separator() + newName);
+        commandLine->clear();
+        filesView->setFocus();
+        mode = Mode::NORMAL;
         return;
     }
 

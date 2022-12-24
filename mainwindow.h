@@ -19,6 +19,7 @@ class QLineEdit;
 enum class Mode {
     NORMAL,
     COMMAND,
+    SEARCH,
 };
 
 enum class EKey {
@@ -148,4 +149,5 @@ private:
     QLineEdit* commandLine;
     QFileSystemModel* model;
     NormalMode normalMode;
+    bool isInSearch = false;
 };

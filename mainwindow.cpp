@@ -140,6 +140,11 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
         normalMode.addKey(EKey::D);
         break;
 
+    case Qt::Key_Slash:
+        commandLine->setFocus();
+        isInSearch = true;
+        return true;
+
     default:
         return false;
     }
@@ -247,6 +252,14 @@ void MainWindow::deleteFile()
 
 void MainWindow::handleCommand()
 {
+    if (isInSearch) {
+        isInSearch = false;
+        getView()->keyboardSearch(commandLine->text());
+        commandLine->clear();
+        filesView->setFocus();
+        return;
+    }
+
     const QString& operation = commandLine->text();
     if (operation.isEmpty())
         return;

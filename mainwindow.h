@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QFileInfo>
 #include <functional>
 
 QT_BEGIN_NAMESPACE
@@ -18,6 +19,57 @@ class QLineEdit;
 enum class Mode {
     NORMAL,
     COMMAND,
+};
+
+enum class EKey {
+    NONE,
+    META,
+    SHIFT,
+    CONTROL,
+    G,
+    H,
+    J,
+    K,
+    L,
+};
+
+
+enum class CommandType {
+    NONE,
+    OPEN_PARENT_DIRECTORY,
+    OPEN_CURRENT_DIRECTORY,
+    SELECT_NEXT,
+    SELECT_PREVIOUS,
+    SELECT_FIRST,
+    SELECT_LAST,
+};
+
+
+class Command {
+public:
+    using Seq = std::vector<EKey>;
+
+    Command(CommandType, Seq);
+    int eq(const Seq&) const;
+    CommandType getType() const;
+
+private:
+    CommandType command;
+    std::vector<EKey> keySequence;
+};
+
+class CommandMode {
+public:
+    using Status = std::pair<bool, CommandType>;
+    void addCommand(Command);
+    bool isLast(EKey) const;
+    void addKey(EKey);
+    Status handle();
+    void reset();
+
+private:
+    std::vector<Command> commands;
+    std::vector<EKey> keySequence;
 };
 
 class ViMode {
@@ -54,6 +106,7 @@ public:
 
 protected:
     QString getCurrentFile() const;
+    QFileInfo getCurrentFileInfo() const;
     QString getCurrentDirectory() const;
     int getCurrentRow() const;
     void keyPressEvent(QKeyEvent*) override;
@@ -65,10 +118,9 @@ private slots:
     void goToDown();
     void goToUp();
     void goToFall();
-    void onDirectoryLoaded();
+    void selectFirst();
     void deleteFile();
     void handleCommand();
-    void onIndexPressed(const QModelIndex&);
     void onDataChanged();
 
 private:
@@ -78,4 +130,5 @@ private:
     QLabel* pathView;
     QLineEdit* commandLine;
     QFileSystemModel* model;
+    CommandMode commandMode;
 };

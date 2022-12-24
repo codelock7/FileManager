@@ -8,6 +8,11 @@
 #include <QKeyEvent>
 #include <QLineEdit>
 #include "platform.h"
+#include <vector>
+
+
+#define GET_CSTR(qStr) (qStr.toLocal8Bit().data())
+
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -17,7 +22,6 @@ MainWindow::MainWindow(QWidget *parent)
 
     filesView = ui->centralwidget->findChild<QTableView*>("filesView");
     Q_ASSERT(filesView != nullptr);
-//    QObject::connect(filesView, &QTableView::pressed, this, &MainWindow::onIndexPressed);
 
     pathView = ui->centralwidget->findChild<QLabel*>("pathView");
     Q_ASSERT(pathView != nullptr);
@@ -34,6 +38,13 @@ MainWindow::MainWindow(QWidget *parent)
     QObject::connect(model, &QFileSystemModel::dataChanged, this, &MainWindow::onDataChanged);
     filesView->setModel(model);
     filesView->installEventFilter(eater);
+
+    commandMode.addCommand({CommandType::OPEN_PARENT_DIRECTORY, {EKey::H}});
+    commandMode.addCommand({CommandType::OPEN_CURRENT_DIRECTORY, {EKey::L}});
+    commandMode.addCommand({CommandType::SELECT_NEXT, {EKey::J}});
+    commandMode.addCommand({CommandType::SELECT_PREVIOUS, {EKey::K}});
+    commandMode.addCommand({CommandType::SELECT_FIRST, {EKey::G, EKey::G}});
+    commandMode.addCommand({CommandType::SELECT_LAST, {EKey::SHIFT, EKey::G}});
 }
 
 MainWindow::~MainWindow()
@@ -44,9 +55,11 @@ MainWindow::~MainWindow()
 QString MainWindow::getCurrentFile() const
 {
     return model->filePath(filesView->currentIndex());
-//    const QModelIndex& index = filesView->currentIndex();
-//    const QVariant& path = index.data(QFileSystemModel::FilePathRole);
-//    return path.toString();
+}
+
+QFileInfo MainWindow::getCurrentFileInfo() const
+{
+    return model->fileInfo(filesView->currentIndex());
 }
 
 QString MainWindow::getCurrentDirectory() const
@@ -68,25 +81,50 @@ void MainWindow::keyPressEvent(QKeyEvent* keyEvent)
 
 bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
 {
+    if (keyEvent->modifiers() != Qt::NoModifier) {
+        if (keyEvent->modifiers() == (keyEvent->modifiers() & Qt::ControlModifier)) {
+            if (!commandMode.isLast(EKey::CONTROL))
+                commandMode.addKey(EKey::CONTROL);
+        }
+
+        if (keyEvent->modifiers() == (keyEvent->modifiers() & Qt::AltModifier)) {
+            if (!commandMode.isLast(EKey::META))
+                commandMode.addKey(EKey::META);
+        }
+
+        if (keyEvent->modifiers() == (keyEvent->modifiers() & Qt::ShiftModifier)) {
+            if (!commandMode.isLast(EKey::SHIFT))
+                commandMode.addKey(EKey::SHIFT);
+        }
+    }
+
     switch (keyEvent->key()) {
     case Qt::Key_Q:
-        qDebug("key q");
+//        if (keyEvent->modifiers() && keyEvent->modifiers() == (keyEvent->modifiers() & Qt::ShiftModifier))
+//            qApp->exit();
+        break;
+    case Qt::Key_G:
+        commandMode.addKey(EKey::G);
         break;
 
     case Qt::Key_L:
-        goToSelected();
+        commandMode.addKey(EKey::L);
+//        goToSelected();
         break;
 
     case Qt::Key_H:
-        goToParent();
+        commandMode.addKey(EKey::H);
+//        goToParent();
         break;
 
     case Qt::Key_J:
-        goToDown();
+        commandMode.addKey(EKey::J);
+//        goToDown();
         break;
 
     case Qt::Key_K:
-        goToUp();
+        commandMode.addKey(EKey::K);
+//        goToUp();
         break;
 
     case Qt::Key_Escape:
@@ -98,27 +136,55 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
         break;
 
     case Qt::Key_D:
-        if (keyEvent->modifiers() == (keyEvent->modifiers() & Qt::ShiftModifier))
+        if (keyEvent->modifiers() && keyEvent->modifiers() == (keyEvent->modifiers() & Qt::ShiftModifier))
             deleteFile();
         break;
 
     default:
         return false;
     }
+
+    const CommandMode::Status status = commandMode.handle();
+    if (std::get<bool>(status)) {
+        switch (std::get<CommandType>(status)) {
+        case CommandType::NONE:
+            break;
+        case CommandType::OPEN_PARENT_DIRECTORY:
+            goToParent();
+            break;
+        case CommandType::OPEN_CURRENT_DIRECTORY:
+            goToSelected();
+            break;
+        case CommandType::SELECT_NEXT:
+            goToDown();
+            break;
+        case CommandType::SELECT_PREVIOUS:
+            goToUp();
+            break;
+        case CommandType::SELECT_FIRST:
+            selectFirst();
+            break;
+        case CommandType::SELECT_LAST:
+            goToFall();
+            break;
+        }
+        commandMode.reset();
+    }
+    qDebug("Reset");
     return true;
 }
 
 void MainWindow::goToSelected()
 {
-    const QModelIndex& currentIndex = filesView->currentIndex();
-    const QFileInfo& newPathInfo = model->fileInfo(currentIndex);
-    if (!newPathInfo.isDir())
+    const QFileInfo& currFileInfo = getCurrentFileInfo();
+    if (!currFileInfo.isDir())
         return;
-    const QModelIndex& newIndex = model->index(newPathInfo.filePath());
+    const QString& currFilePath = currFileInfo.filePath();
+    const QModelIndex& newIndex = model->index(currFilePath);
     filesView->setRootIndex(newIndex);
-    qDebug("%s %d", newPathInfo.path().toLocal8Bit().data(), model->rowCount());
+    qDebug("%s %d", GET_CSTR(currFilePath), model->rowCount());
     filesView->selectRow(0);
-    pathView->setText(newPathInfo.filePath());
+    pathView->setText(currFilePath);
 }
 
 void MainWindow::goToParent()
@@ -147,19 +213,18 @@ void MainWindow::goToFall()
     filesView->selectRow(rowCount - 1);
 }
 
-void MainWindow::onDirectoryLoaded()
+void MainWindow::selectFirst()
 {
     filesView->selectRow(0);
 }
 
 void MainWindow::deleteFile()
 {
-    const auto& currIndex = filesView->currentIndex();
-    const auto& info = model->fileInfo(currIndex);
+    const QFileInfo& info = getCurrentFileInfo();
     const auto button = QMessageBox::question(this, tr("Do you want to delete file?"), tr("Delete this file?\n") + info.fileName());
     if (button != QMessageBox::Yes)
         return;
-    qDebug(info.filePath().toLocal8Bit().data());
+    qDebug(GET_CSTR(info.filePath()));
     if (info.isDir()) {
         QDir dir(info.filePath());
         dir.removeRecursively();
@@ -185,7 +250,7 @@ void MainWindow::handleCommand()
         }
     } else if (commandName == "open") {
         const auto& currFile = getCurrentFile();
-        Platform::open(currFile.toLocal8Bit().data());
+        Platform::open(GET_CSTR(currFile));
     } else if (commandName == "touch") {
         const QString& currDir = getCurrentDirectory();
         for (int i = 1; i < substrings.length(); ++i) {
@@ -197,12 +262,6 @@ void MainWindow::handleCommand()
 
     commandLine->clear();
     filesView->setFocus();
-}
-
-void MainWindow::onIndexPressed(const QModelIndex& index)
-{
-    const auto& path = model->filePath(index);
-    Platform::open(path.toLocal8Bit().data());
 }
 
 void MainWindow::onDataChanged()
@@ -244,4 +303,73 @@ void ViMode::reset()
 bool ViMode::hasSequence() const
 {
     return true;
+}
+
+void CommandMode::addCommand(Command command)
+{
+    commands.push_back(std::move(command));
+}
+
+bool CommandMode::isLast(EKey key) const
+{
+    if (keySequence.empty())
+        return false;
+    return keySequence.back() == key;
+}
+
+void CommandMode::addKey(EKey key)
+{
+    keySequence.push_back(key);
+}
+
+CommandMode::Status CommandMode::handle()
+{
+    Status result;
+
+    for (const Command& command : commands) {
+        const int status = command.eq(keySequence);
+        switch (status) {
+        case -1:
+            std::get<bool>(result) = true;
+            break;
+        case 1:
+            std::get<bool>(result) = true;
+            std::get<CommandType>(result) = command.getType();
+            return result;
+        }
+    }
+
+    std::get<CommandType>(result) = CommandType::NONE;
+    return result;
+}
+
+void CommandMode::reset()
+{
+    keySequence.clear();
+}
+
+Command::Command(CommandType cmd, Seq seq)
+    : command(cmd)
+    , keySequence(std::move(seq))
+{
+}
+
+int Command::eq(const Seq& rhs) const
+{
+    Q_ASSERT(!rhs.empty());
+    if (keySequence.size() < rhs.size())
+        return -1;
+    if (keySequence.size() > rhs.size())
+        return 0;
+    const size_t len = keySequence.size();
+    for (size_t i = 0; i < len; ++i) {
+        if (keySequence[i] != rhs[i])
+            return 0;
+    }
+    return 1;
+}
+
+CommandType Command::getType() const
+{
+    return command;
 }

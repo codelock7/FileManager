@@ -57,12 +57,12 @@ MainWindow::~MainWindow()
 
 QString MainWindow::getCurrentFile() const
 {
-    return model->filePath(filesView->currentIndex());
+    return model->filePath(getCurrentIndex());
 }
 
 QFileInfo MainWindow::getCurrentFileInfo() const
 {
-    return model->fileInfo(filesView->currentIndex());
+    return model->fileInfo(getCurrentIndex());
 }
 
 QString MainWindow::getCurrentDirectory() const
@@ -72,7 +72,7 @@ QString MainWindow::getCurrentDirectory() const
 
 int MainWindow::getCurrentRow() const
 {
-    const auto& currIndex = filesView->currentIndex();
+    const auto& currIndex = getCurrentIndex();
     if (currIndex.parent() != filesView->rootIndex())
         return -1;
     return currIndex.row();
@@ -182,7 +182,7 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
 
 void MainWindow::goToSelected()
 {
-    const QModelIndex& newIndex = getView()->currentIndex();
+    const QModelIndex& newIndex = getCurrentIndex();
     if (!model->isDir(newIndex))
         return;
     filesView->setRootIndex(newIndex);
@@ -232,7 +232,7 @@ void MainWindow::selectFirst()
 
 void MainWindow::deleteFile()
 {
-    const QModelIndex& currIndex = filesView->currentIndex();
+    const QModelIndex& currIndex = getCurrentIndex();
     const QMessageBox::StandardButton button = QMessageBox::question(
         this, tr("Do you want to delete file?"),
         tr("Delete this file?\n") + model->fileName(currIndex)
@@ -285,9 +285,15 @@ void MainWindow::onRowsRemoved(const QModelIndex& parent, int first, int last)
     getView()->selectRow(0);
 }
 
-QTableView *MainWindow::getView()
+QTableView *MainWindow::getView() const
 {
     return filesView;
+}
+
+QModelIndex MainWindow::getCurrentIndex() const
+{
+    const QModelIndex& currIndex = filesView->currentIndex();
+    return model->index(currIndex.row(), 0, currIndex.parent());
 }
 
 

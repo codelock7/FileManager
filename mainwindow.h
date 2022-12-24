@@ -137,7 +137,8 @@ private slots:
     void onRowsRemoved(const QModelIndex& parent, int first, int last);
 
 private:
-    QTableView* getView();
+    QTableView* getView() const;
+    QModelIndex getCurrentIndex() const;
 
 private:
     ViMode viMode;

@@ -138,12 +138,12 @@ private slots:
     void selectFirst();
     void deleteFile();
     void handleCommand();
-    void onDataChanged();
-    void onRowsRemoved(const QModelIndex& parent, int first, int last);
+    void onRowsInserted(const QModelIndex& parent, int first, int last);
 
 private:
     QTableView* getView() const;
     QModelIndex getCurrentIndex() const;
+    void switchToNormalMode();
 
 private:
     ViMode viMode;

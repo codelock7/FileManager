@@ -35,8 +35,7 @@ MainWindow::MainWindow(QWidget *parent)
     );
     model = new QFileSystemModel;
     model->setRootPath(QDir::currentPath());
-    QObject::connect(model, &QFileSystemModel::dataChanged, this, &MainWindow::onDataChanged);
-    QObject::connect(model, &QFileSystemModel::rowsInserted, this, &MainWindow::onRowsRemoved);
+    QObject::connect(model, &QFileSystemModel::rowsInserted, this, &MainWindow::onRowsInserted);
     filesView->setModel(model);
     filesView->installEventFilter(eater);
 
@@ -192,7 +191,6 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
         }
         normalMode.reset();
     }
-    qDebug("Reset");
     return true;
 }
 
@@ -205,13 +203,18 @@ void MainWindow::goToSelected()
     const QString& newPath = model->filePath(newIndex);
     filesView->selectRow(0);
     pathView->setText(newPath);
+
+    ui->statusbar->showMessage(tr("rc: %1").arg(model->rowCount(newIndex)));
 }
 
 void MainWindow::goToParent()
 {
-    filesView->setRootIndex(filesView->rootIndex().parent());
+    const QModelIndex& newRoot = filesView->rootIndex().parent();
+    filesView->setRootIndex(newRoot);
     filesView->selectRow(0);
-    pathView->setText(model->filePath(filesView->rootIndex()));
+    pathView->setText(model->filePath(newRoot));
+
+    ui->statusbar->showMessage(tr("rc: %1").arg(model->rowCount(newRoot)));
 }
 
 void MainWindow::goToDown()
@@ -266,18 +269,14 @@ void MainWindow::handleCommand()
     switch (mode) {
     case Mode::SEARCH:
         getView()->keyboardSearch(commandLine->text());
-        commandLine->clear();
-        filesView->setFocus();
-        mode = Mode::NORMAL;
+        switchToNormalMode();
         return;
     case Mode::RENAME:
         const QFileInfo& info = model->fileInfo(getCurrentIndex());
         if (const QString& newName = commandLine->text();
                 !newName.isEmpty())
             QFile(info.filePath()).rename(info.path() + QDir::separator() + newName);
-        commandLine->clear();
-        filesView->setFocus();
-        mode = Mode::NORMAL;
+        switchToNormalMode();
         return;
     }
 
@@ -304,19 +303,14 @@ void MainWindow::handleCommand()
         }
     }
 
-    commandLine->clear();
-    filesView->setFocus();
+    switchToNormalMode();
 }
 
-void MainWindow::onDataChanged()
-{
-    qDebug("dataChanged");
-}
-
-void MainWindow::onRowsRemoved(const QModelIndex& parent, int first, int last)
+void MainWindow::onRowsInserted(const QModelIndex& parent, int first, int last)
 {
     qDebug("View updated");
     getView()->selectRow(0);
+    ui->statusbar->showMessage(tr("rc: %1").arg(model->rowCount(parent)));
 }
 
 QTableView *MainWindow::getView() const
@@ -328,6 +322,13 @@ QModelIndex MainWindow::getCurrentIndex() const
 {
     const QModelIndex& currIndex = filesView->currentIndex();
     return model->index(currIndex.row(), 0, currIndex.parent());
+}
+
+void MainWindow::switchToNormalMode()
+{
+    mode = Mode::NORMAL;
+    commandLine->clear();
+    getView()->setFocus();
 }
 
 

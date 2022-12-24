@@ -34,6 +34,8 @@ set(PROJECT_SOURCES
         mainwindow.ui
         filemanager.h
         filemanager.cpp
+        platform.h
+        platform.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -53,7 +55,7 @@ else()
     endif()
 endif()
 
-target_link_libraries(fm PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+target_link_libraries(fm PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Shell32)
 
 set_target_properties(fm PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER my.example.com

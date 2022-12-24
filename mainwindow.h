@@ -7,11 +7,29 @@ QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
+
 class QTableView;
 class QShortcut;
 class QFileSystemModel;
 class QLabel;
+class QLineEdit;
 
+
+enum class Mode {
+    NORMAL,
+    COMMAND,
+};
+
+class ViMode {
+public:
+    Mode getCurrentMode() const;
+    void setMode(Mode);
+    void reset();
+    bool hasSequence() const;
+
+private:
+    Mode mode = Mode::NORMAL;
+};
 
 class KeyPressEater : public QObject {
 public:
@@ -35,7 +53,8 @@ public:
     ~MainWindow();
 
 protected:
-    QString getSelectedPath() const;
+    QString getCurrentFile() const;
+    QString getCurrentDirectory() const;
     int getCurrentRow() const;
     void keyPressEvent(QKeyEvent*) override;
     bool handleKeyPress(QObject*, QKeyEvent*);
@@ -48,10 +67,15 @@ private slots:
     void goToFall();
     void onDirectoryLoaded();
     void deleteFile();
+    void handleCommand();
+    void onIndexPressed(const QModelIndex&);
+    void onDataChanged();
 
 private:
+    ViMode viMode;
     Ui::MainWindow *ui;
     QTableView* filesView;
     QLabel* pathView;
+    QLineEdit* commandLine;
     QFileSystemModel* model;
 };

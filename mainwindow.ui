@@ -58,6 +58,9 @@ alternate-background-color: rgb(0, 0, 0);</string>
       </attribute>
      </widget>
     </item>
+    <item>
+     <widget class="QLineEdit" name="commandLine"/>
+    </item>
    </layout>
   </widget>
   <widget class="QMenuBar" name="menubar">

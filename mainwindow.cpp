@@ -36,15 +36,18 @@ MainWindow::MainWindow(QWidget *parent)
     model = new QFileSystemModel;
     model->setRootPath(QDir::currentPath());
     QObject::connect(model, &QFileSystemModel::dataChanged, this, &MainWindow::onDataChanged);
+    QObject::connect(model, &QFileSystemModel::rowsInserted, this, &MainWindow::onRowsRemoved);
     filesView->setModel(model);
     filesView->installEventFilter(eater);
 
-    commandMode.addCommand({CommandType::OPEN_PARENT_DIRECTORY, {EKey::H}});
-    commandMode.addCommand({CommandType::OPEN_CURRENT_DIRECTORY, {EKey::L}});
-    commandMode.addCommand({CommandType::SELECT_NEXT, {EKey::J}});
-    commandMode.addCommand({CommandType::SELECT_PREVIOUS, {EKey::K}});
-    commandMode.addCommand({CommandType::SELECT_FIRST, {EKey::G, EKey::G}});
-    commandMode.addCommand({CommandType::SELECT_LAST, {EKey::SHIFT, EKey::G}});
+    normalMode.addCommand({ENormalOperation::COMMAND_MODE, {EKey::SHIFT, EKey::COLON}});
+    normalMode.addCommand({ENormalOperation::OPEN_PARENT_DIRECTORY, {EKey::H}});
+    normalMode.addCommand({ENormalOperation::OPEN_CURRENT_DIRECTORY, {EKey::L}});
+    normalMode.addCommand({ENormalOperation::SELECT_NEXT, {EKey::J}});
+    normalMode.addCommand({ENormalOperation::SELECT_PREVIOUS, {EKey::K}});
+    normalMode.addCommand({ENormalOperation::SELECT_FIRST, {EKey::G, EKey::G}});
+    normalMode.addCommand({ENormalOperation::SELECT_LAST, {EKey::SHIFT, EKey::G}});
+    normalMode.addCommand({ENormalOperation::DELETE_FILE, {EKey::SHIFT, EKey::D}});
 }
 
 MainWindow::~MainWindow()
@@ -64,13 +67,15 @@ QFileInfo MainWindow::getCurrentFileInfo() const
 
 QString MainWindow::getCurrentDirectory() const
 {
-    return model->filePath(filesView->currentIndex().parent());
+    return model->filePath(filesView->rootIndex());
 }
 
 int MainWindow::getCurrentRow() const
 {
-    const QModelIndex& index = filesView->currentIndex();
-    return index.row();
+    const auto& currIndex = filesView->currentIndex();
+    if (currIndex.parent() != filesView->rootIndex())
+        return -1;
+    return currIndex.row();
 }
 
 void MainWindow::keyPressEvent(QKeyEvent* keyEvent)
@@ -83,92 +88,93 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
 {
     if (keyEvent->modifiers() != Qt::NoModifier) {
         if (keyEvent->modifiers() == (keyEvent->modifiers() & Qt::ControlModifier)) {
-            if (!commandMode.isLast(EKey::CONTROL))
-                commandMode.addKey(EKey::CONTROL);
+            if (!normalMode.isLast(EKey::CONTROL))
+                normalMode.addKey(EKey::CONTROL);
         }
 
         if (keyEvent->modifiers() == (keyEvent->modifiers() & Qt::AltModifier)) {
-            if (!commandMode.isLast(EKey::META))
-                commandMode.addKey(EKey::META);
+            if (!normalMode.isLast(EKey::META))
+                normalMode.addKey(EKey::META);
         }
 
         if (keyEvent->modifiers() == (keyEvent->modifiers() & Qt::ShiftModifier)) {
-            if (!commandMode.isLast(EKey::SHIFT))
-                commandMode.addKey(EKey::SHIFT);
+            if (!normalMode.isLast(EKey::SHIFT))
+                normalMode.addKey(EKey::SHIFT);
         }
     }
 
     switch (keyEvent->key()) {
     case Qt::Key_Q:
-//        if (keyEvent->modifiers() && keyEvent->modifiers() == (keyEvent->modifiers() & Qt::ShiftModifier))
-//            qApp->exit();
         break;
+
     case Qt::Key_G:
-        commandMode.addKey(EKey::G);
+        normalMode.addKey(EKey::G);
         break;
 
     case Qt::Key_L:
-        commandMode.addKey(EKey::L);
-//        goToSelected();
+        normalMode.addKey(EKey::L);
         break;
 
     case Qt::Key_H:
-        commandMode.addKey(EKey::H);
-//        goToParent();
+        normalMode.addKey(EKey::H);
         break;
 
     case Qt::Key_J:
-        commandMode.addKey(EKey::J);
-//        goToDown();
+        normalMode.addKey(EKey::J);
         break;
 
     case Qt::Key_K:
-        commandMode.addKey(EKey::K);
-//        goToUp();
+        normalMode.addKey(EKey::K);
         break;
 
     case Qt::Key_Escape:
+        normalMode.reset();
         filesView->setFocus();
-        break;
+        return true;
 
     case Qt::Key_Colon:
-        commandLine->setFocus();
+        normalMode.addKey(EKey::COLON);
         break;
 
     case Qt::Key_D:
-        if (keyEvent->modifiers() && keyEvent->modifiers() == (keyEvent->modifiers() & Qt::ShiftModifier))
-            deleteFile();
+        normalMode.addKey(EKey::D);
         break;
 
     default:
         return false;
     }
 
-    const CommandMode::Status status = commandMode.handle();
+    const NormalMode::Status status = normalMode.handle();
     if (std::get<bool>(status)) {
-        switch (std::get<CommandType>(status)) {
-        case CommandType::NONE:
+        switch (std::get<ENormalOperation>(status)) {
+        case ENormalOperation::NONE:
             break;
-        case CommandType::OPEN_PARENT_DIRECTORY:
+        case ENormalOperation::COMMAND_MODE:
+            commandLine->setFocus();
+            break;
+        case ENormalOperation::OPEN_PARENT_DIRECTORY:
             goToParent();
             break;
-        case CommandType::OPEN_CURRENT_DIRECTORY:
+        case ENormalOperation::OPEN_CURRENT_DIRECTORY:
             goToSelected();
             break;
-        case CommandType::SELECT_NEXT:
+        case ENormalOperation::SELECT_NEXT:
             goToDown();
             break;
-        case CommandType::SELECT_PREVIOUS:
+        case ENormalOperation::SELECT_PREVIOUS:
             goToUp();
             break;
-        case CommandType::SELECT_FIRST:
+        case ENormalOperation::SELECT_FIRST:
             selectFirst();
             break;
-        case CommandType::SELECT_LAST:
+        case ENormalOperation::SELECT_LAST:
             goToFall();
             break;
+        case ENormalOperation::DELETE_FILE:
+            deleteFile();
+            break;
         }
-        commandMode.reset();
+        normalMode.reset();
     }
     qDebug("Reset");
     return true;
@@ -176,15 +182,13 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
 
 void MainWindow::goToSelected()
 {
-    const QFileInfo& currFileInfo = getCurrentFileInfo();
-    if (!currFileInfo.isDir())
+    const QModelIndex& newIndex = getView()->currentIndex();
+    if (!model->isDir(newIndex))
         return;
-    const QString& currFilePath = currFileInfo.filePath();
-    const QModelIndex& newIndex = model->index(currFilePath);
     filesView->setRootIndex(newIndex);
-    qDebug("%s %d", GET_CSTR(currFilePath), model->rowCount());
+    const QString& newPath = model->filePath(newIndex);
     filesView->selectRow(0);
-    pathView->setText(currFilePath);
+    pathView->setText(newPath);
 }
 
 void MainWindow::goToParent()
@@ -196,19 +200,27 @@ void MainWindow::goToParent()
 
 void MainWindow::goToDown()
 {
-    const int nextRow = getCurrentRow() + 1;
-    filesView->selectRow(nextRow);
+    const auto currRow = getCurrentRow();
+    if (currRow == -1) {
+        filesView->selectRow(0);
+        return;
+    }
+    filesView->selectRow(currRow + 1);
 }
 
 void MainWindow::goToUp()
 {
-    const int prevRow = getCurrentRow() - 1;
-    filesView->selectRow(prevRow);
+    const auto currRow = getCurrentRow();
+    if (currRow == -1) {
+        filesView->selectRow(0);
+        return;
+    }
+    filesView->selectRow(currRow - 1);
 }
 
 void MainWindow::goToFall()
 {
-    const int rowCount = model->rowCount(filesView->currentIndex().parent());
+    const int rowCount = model->rowCount(filesView->rootIndex());
     qDebug("rowCount: %d", rowCount);
     filesView->selectRow(rowCount - 1);
 }
@@ -220,33 +232,31 @@ void MainWindow::selectFirst()
 
 void MainWindow::deleteFile()
 {
-    const QFileInfo& info = getCurrentFileInfo();
-    const auto button = QMessageBox::question(this, tr("Do you want to delete file?"), tr("Delete this file?\n") + info.fileName());
-    if (button != QMessageBox::Yes)
-        return;
-    qDebug(GET_CSTR(info.filePath()));
-    if (info.isDir()) {
-        QDir dir(info.filePath());
-        dir.removeRecursively();
-    } else {
-        QFile file(info.filePath());
-        file.remove();
+    const QModelIndex& currIndex = filesView->currentIndex();
+    const QMessageBox::StandardButton button = QMessageBox::question(
+        this, tr("Do you want to delete file?"),
+        tr("Delete this file?\n") + model->fileName(currIndex)
+    );
+    if (button == QMessageBox::Yes) {
+        if (model->isDir(currIndex))
+            QDir(model->filePath(currIndex)).removeRecursively();
+        else
+            model->remove(currIndex);
     }
 }
 
 void MainWindow::handleCommand()
 {
-    const QString& command = commandLine->text();
-    if (command.isEmpty())
+    const QString& operation = commandLine->text();
+    if (operation.isEmpty())
         return;
-    const QStringList& substrings = command.split(' ');
+    const QStringList& substrings = operation.split(' ');
 
     const QString& commandName = substrings.first().trimmed();
     if (commandName == "mkdir") {
         const QString& path = getCurrentDirectory();
-        QDir dir(path);
         for (int i = 1; i < substrings.length(); ++i) {
-            dir.mkdir(substrings[i]);
+            model->mkdir(filesView->rootIndex(), substrings[i]);
         }
     } else if (commandName == "open") {
         const auto& currFile = getCurrentFile();
@@ -267,6 +277,17 @@ void MainWindow::handleCommand()
 void MainWindow::onDataChanged()
 {
     qDebug("dataChanged");
+}
+
+void MainWindow::onRowsRemoved(const QModelIndex& parent, int first, int last)
+{
+    qDebug("View updated");
+    getView()->selectRow(0);
+}
+
+QTableView *MainWindow::getView()
+{
+    return filesView;
 }
 
 
@@ -305,56 +326,61 @@ bool ViMode::hasSequence() const
     return true;
 }
 
-void CommandMode::addCommand(Command command)
+void NormalMode::addCommand(NormalOperation operation)
 {
-    commands.push_back(std::move(command));
+    commands.push_back(std::move(operation));
 }
 
-bool CommandMode::isLast(EKey key) const
+bool NormalMode::isLast(EKey key) const
 {
     if (keySequence.empty())
         return false;
     return keySequence.back() == key;
 }
 
-void CommandMode::addKey(EKey key)
+bool NormalMode::isEmptySequence() const
+{
+    return keySequence.empty();
+}
+
+void NormalMode::addKey(EKey key)
 {
     keySequence.push_back(key);
 }
 
-CommandMode::Status CommandMode::handle()
+NormalMode::Status NormalMode::handle()
 {
     Status result;
 
-    for (const Command& command : commands) {
-        const int status = command.eq(keySequence);
+    for (const NormalOperation& operation : commands) {
+        const int status = operation.eq(keySequence);
         switch (status) {
         case -1:
             std::get<bool>(result) = true;
             break;
         case 1:
             std::get<bool>(result) = true;
-            std::get<CommandType>(result) = command.getType();
+            std::get<ENormalOperation>(result) = operation.getType();
             return result;
         }
     }
 
-    std::get<CommandType>(result) = CommandType::NONE;
+    std::get<ENormalOperation>(result) = ENormalOperation::NONE;
     return result;
 }
 
-void CommandMode::reset()
+void NormalMode::reset()
 {
     keySequence.clear();
 }
 
-Command::Command(CommandType cmd, Seq seq)
-    : command(cmd)
+NormalOperation::NormalOperation(ENormalOperation cmd, Seq seq)
+    : operation(cmd)
     , keySequence(std::move(seq))
 {
 }
 
-int Command::eq(const Seq& rhs) const
+int NormalOperation::eq(const Seq& rhs) const
 {
     Q_ASSERT(!rhs.empty());
     if (keySequence.size() < rhs.size())
@@ -369,7 +395,7 @@ int Command::eq(const Seq& rhs) const
     return 1;
 }
 
-CommandType Command::getType() const
+ENormalOperation NormalOperation::getType() const
 {
-    return command;
+    return operation;
 }

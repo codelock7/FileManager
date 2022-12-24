@@ -23,52 +23,64 @@ enum class Mode {
 
 enum class EKey {
     NONE,
+    ESCAPE,
     META,
     SHIFT,
     CONTROL,
+    COLON,
+    D,
     G,
     H,
     J,
     K,
     L,
+
+    COUNT,
 };
 
 
-enum class CommandType {
+enum class ENormalOperation {
     NONE,
+    RESET,
+    COMMAND_MODE,
     OPEN_PARENT_DIRECTORY,
     OPEN_CURRENT_DIRECTORY,
     SELECT_NEXT,
     SELECT_PREVIOUS,
     SELECT_FIRST,
     SELECT_LAST,
+    DELETE_FILE,
+
+    COUNT,
 };
 
 
-class Command {
+class NormalOperation {
 public:
     using Seq = std::vector<EKey>;
 
-    Command(CommandType, Seq);
+    NormalOperation(ENormalOperation, Seq);
     int eq(const Seq&) const;
-    CommandType getType() const;
+    ENormalOperation getType() const;
 
 private:
-    CommandType command;
+    ENormalOperation operation;
     std::vector<EKey> keySequence;
 };
 
-class CommandMode {
+class NormalMode {
 public:
-    using Status = std::pair<bool, CommandType>;
-    void addCommand(Command);
+    using Status = std::pair<bool, ENormalOperation>;
+
     bool isLast(EKey) const;
+    bool isEmptySequence() const;
+    void addCommand(NormalOperation);
     void addKey(EKey);
     Status handle();
     void reset();
 
 private:
-    std::vector<Command> commands;
+    std::vector<NormalOperation> commands;
     std::vector<EKey> keySequence;
 };
 
@@ -122,6 +134,10 @@ private slots:
     void deleteFile();
     void handleCommand();
     void onDataChanged();
+    void onRowsRemoved(const QModelIndex& parent, int first, int last);
+
+private:
+    QTableView* getView();
 
 private:
     ViMode viMode;
@@ -130,5 +146,5 @@ private:
     QLabel* pathView;
     QLineEdit* commandLine;
     QFileSystemModel* model;
-    CommandMode commandMode;
+    NormalMode normalMode;
 };

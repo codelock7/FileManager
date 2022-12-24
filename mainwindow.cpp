@@ -38,6 +38,7 @@ MainWindow::MainWindow(QWidget *parent)
     QObject::connect(model, &QFileSystemModel::rowsInserted, this, &MainWindow::onRowsInserted);
     filesView->setModel(model);
     filesView->installEventFilter(eater);
+    filesView->setColumnWidth(0, 400);
 
     normalMode.addCommand({ENormalOperation::COMMAND_MODE, {EKey::SHIFT, EKey::COLON}});
     normalMode.addCommand({ENormalOperation::OPEN_PARENT_DIRECTORY, {EKey::H}});
@@ -292,8 +293,7 @@ void MainWindow::handleCommand()
             model->mkdir(filesView->rootIndex(), substrings[i]);
         }
     } else if (commandName == "open") {
-        const auto& currFile = getCurrentFile();
-        Platform::open(GET_CSTR(currFile));
+        Platform::open(getCurrentFile().toStdWString().c_str());
     } else if (commandName == "touch") {
         const QString& currDir = getCurrentDirectory();
         for (int i = 1; i < substrings.length(); ++i) {

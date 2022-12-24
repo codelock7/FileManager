@@ -5,7 +5,12 @@
 #include <WinUser.h>
 
 
-void Platform::open(const char* path)
+void Platform::open(const wchar_t* path)
 {
-    ShellExecute(nullptr, nullptr, path, nullptr, nullptr, SW_SHOWNORMAL);
+    SHELLEXECUTEINFOW info{sizeof(info)};
+    info.fMask = SEE_MASK_NOASYNC;
+    info.lpVerb = L"open";
+    info.lpFile = path;
+    info.nShow = SW_SHOWNORMAL;
+    ShellExecuteExW(&info);
 }

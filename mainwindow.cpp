@@ -318,7 +318,9 @@ void MainWindow::switchToNormalMode()
 {
     switch (mode) {
     case Mode::COMMAND:
+        [[fallthrough]];
     case Mode::RENAME:
+        [[fallthrough]];
     case Mode::SEARCH:
         mode = Mode::NORMAL;
         commandLine->clear();

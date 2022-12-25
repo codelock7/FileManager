@@ -25,6 +25,7 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+    QObject::connect(ui->statusbar, &QStatusBar::messageChanged, this, &MainWindow::onMessageChange);
 
     filesView = ui->centralwidget->findChild<QTableView*>("filesView");
     Q_ASSERT(filesView != nullptr);
@@ -135,7 +136,7 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
         return false;
     }
 
-    ui->statusbar->showMessage(tr("rc: %1, ks: %2").arg(model->rowCount(getView()->rootIndex())).arg(normalMode.seq()));
+    showStatus(tr("rc: %1, ks: %2").arg(model->rowCount(getView()->rootIndex())).arg(normalMode.seq()));
 
     handleNormalOperation();
     return true;
@@ -210,7 +211,7 @@ void MainWindow::goToSelected()
     filesView->selectRow(0);
     pathView->setText(newPath);
 
-    ui->statusbar->showMessage(tr("rc: %1").arg(model->rowCount(newIndex)));
+    showStatus(tr("rc: %1").arg(model->rowCount(newIndex)));
 }
 
 void MainWindow::goToParent()
@@ -220,7 +221,7 @@ void MainWindow::goToParent()
     filesView->selectRow(0);
     pathView->setText(model->filePath(newRoot));
 
-    ui->statusbar->showMessage(tr("rc: %1").arg(model->rowCount(newRoot)));
+    showStatus(tr("rc: %1").arg(model->rowCount(newRoot)));
 }
 
 void MainWindow::goToDown()
@@ -312,11 +313,11 @@ void MainWindow::onCommandLineEnter()
         const QString& destPath = getCurrentDirectory() / commandLine->text();
         if (!QFile::copy(pathCopy, destPath)) {
             if (!QFileInfo::exists(pathCopy))
-                ui->statusbar->showMessage("The file being copied no longer exists", 4000);
+                showStatus("The file being copied no longer exists", 4);
             else if (QFileInfo::exists(destPath))
-                ui->statusbar->showMessage("The file being copied with that name already exists", 4000);
+                showStatus("The file being copied with that name already exists", 4);
             else
-                ui->statusbar->showMessage("Unexpected copy error", 4000);
+                showStatus("Unexpected copy error", 4);
         }
         break;
     }
@@ -331,7 +332,13 @@ void MainWindow::onRowsInserted(const QModelIndex& parent, int first, int last)
 {
     qDebug("View updated");
     getView()->selectRow(0);
-    ui->statusbar->showMessage(tr("rc: %1").arg(model->rowCount(parent)));
+    showStatus(tr("rc: %1").arg(model->rowCount(parent)));
+}
+
+void MainWindow::onMessageChange(const QString& message)
+{
+    if (message.isEmpty())
+        showStatus(tr("rc: %1, ks: %2").arg(model->rowCount(getView()->rootIndex())).arg(normalMode.seq()));
 }
 
 QTableView *MainWindow::getView() const
@@ -370,15 +377,21 @@ void MainWindow::copyFile(const QString &filePath)
     if (QFile::copy(filePath, newFilePath))
         return;
     if (!fileInfo.exists()) {
-        ui->statusbar->showMessage("The file being copied no longer exists", 4000);
+        showStatus("The file being copied no longer exists", 4);
     } else if (QFileInfo::exists(newFilePath)) {
         mode = Mode::RENAME_FOR_COPY;
         commandLine->setFocus();
         commandLine->setText(newFileName);
-        ui->statusbar->showMessage("Set a new name for the destination file");
+        showStatus("Set a new name for the destination file");
     } else {
-        ui->statusbar->showMessage("Enexpected copy error", 4000);
+        showStatus("Enexpected copy error", 4);
     }
+}
+
+void MainWindow::showStatus(const QString& message, int seconds)
+{
+    Q_ASSERT(seconds >= 0);
+    ui->statusbar->showMessage(message, seconds * 1000);
 }
 
 

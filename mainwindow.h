@@ -144,12 +144,14 @@ private slots:
     void deleteFile();
     void onCommandLineEnter();
     void onRowsInserted(const QModelIndex& parent, int first, int last);
+    void onMessageChange(const QString&);
 
 private:
     QTableView* getView() const;
     QModelIndex getCurrentIndex() const;
     void switchToNormalMode();
     void copyFile(const QString&);
+    void showStatus(const QString&, int seconds = 0);
 
 private:
     ViMode viMode;

@@ -51,6 +51,7 @@ enum class ENormalOperation {
     RENAME_FILE,
     YANK_FILE,
     PASTE_FILE,
+    SEARCH_NEXT,
 
     COUNT,
 };
@@ -163,4 +164,5 @@ private:
     NormalMode normalMode;
     Mode mode = Mode::NORMAL;
     QString pathCopy;
+    QString lastSearch;
 };

@@ -58,6 +58,7 @@ MainWindow::MainWindow(QWidget *parent)
     normalMode.addCommand({ENormalOperation::RENAME_FILE, {EKey::C, EKey::W}});
     normalMode.addCommand({ENormalOperation::YANK_FILE, {EKey::Y, EKey::Y}});
     normalMode.addCommand({ENormalOperation::PASTE_FILE, {EKey::P}});
+    normalMode.addCommand({ENormalOperation::SEARCH_NEXT, {EKey::N}});
 }
 
 MainWindow::~MainWindow()
@@ -96,8 +97,14 @@ void MainWindow::keyPressEvent(QKeyEvent* keyEvent)
 
 bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
 {
+    if (keyEvent->key() == 0)
+        return false;
+
+    if (keyEvent->type() != QKeyEvent::KeyPress)
+        return false;
+
     if (const Qt::KeyboardModifiers modifiers = keyEvent->modifiers();
-            modifiers != Qt::NoModifier && keyEvent->key() != 0) {
+            modifiers != Qt::NoModifier) {
         if (modifiers == (modifiers & Qt::ControlModifier)) {
             if (!normalMode.isLastEqual(EKey::CONTROL))
                 normalMode.addKey(EKey::CONTROL);
@@ -195,6 +202,10 @@ void MainWindow::handleNormalOperation()
 
         case ENormalOperation::PASTE_FILE:
             copyFile(pathCopy);
+            break;
+
+        case ENormalOperation::SEARCH_NEXT:
+            getView()->keyboardSearch(lastSearch);
             break;
         }
     }
@@ -298,7 +309,8 @@ void MainWindow::onCommandLineEnter()
         break;
     }
     case Mode::SEARCH: {
-        getView()->keyboardSearch(commandLine->text());
+        lastSearch = commandLine->text();
+        getView()->keyboardSearch(lastSearch);
         break;
     }
     case Mode::RENAME: {
@@ -509,10 +521,6 @@ QString toString(const std::vector<EKey>& keys)
     QString result;
     result.reserve(keys.size());
     for (EKey key : keys) {
-        if (key >= EKey::A && key <= EKey::Z) {
-            const int offset = static_cast<int>(key) - static_cast<int>(EKey::A);
-            result.append('a' + offset);
-        }
         switch (key) {
         case EKey::CONTROL:
             result.append('C');
@@ -522,6 +530,12 @@ QString toString(const std::vector<EKey>& keys)
             break;
         case EKey::META:
             result.append('M');
+            break;
+        default:
+            if (key >= EKey::A && key <= EKey::Z) {
+                const int offset = static_cast<int>(key) - static_cast<int>(EKey::A);
+                result.append('a' + offset);
+            }
             break;
         }
     }

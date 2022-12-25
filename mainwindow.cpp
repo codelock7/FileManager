@@ -28,7 +28,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     commandLine = ui->centralwidget->findChild<QLineEdit*>("commandLine");
     Q_ASSERT(commandLine != nullptr);
-    QObject::connect(commandLine, &QLineEdit::returnPressed, this, &MainWindow::handleCommand);
+    QObject::connect(commandLine, &QLineEdit::returnPressed, this, &MainWindow::onCommandLineEnter);
 
     static auto const eater = new KeyPressEater(
         std::bind(&MainWindow::handleKeyPress, this, std::placeholders::_1, std::placeholders::_2)
@@ -87,19 +87,18 @@ void MainWindow::keyPressEvent(QKeyEvent* keyEvent)
 
 bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
 {
-    if (keyEvent->modifiers() != Qt::NoModifier) {
-        if (keyEvent->modifiers() == (keyEvent->modifiers() & Qt::ControlModifier)) {
-            if (!normalMode.isLast(EKey::CONTROL))
+    if (const Qt::KeyboardModifiers modifiers = keyEvent->modifiers();
+            modifiers != Qt::NoModifier && keyEvent->key() != 0) {
+        if (modifiers == (modifiers & Qt::ControlModifier)) {
+            if (!normalMode.isLastEqual(EKey::CONTROL))
                 normalMode.addKey(EKey::CONTROL);
-        }
-
-        if (keyEvent->modifiers() == (keyEvent->modifiers() & Qt::AltModifier)) {
-            if (!normalMode.isLast(EKey::META))
+        } else if (modifiers == (modifiers & Qt::AltModifier)) {
+            if (!normalMode.isLastEqual(EKey::META))
                 normalMode.addKey(EKey::META);
         }
 
         if (keyEvent->modifiers() == (keyEvent->modifiers() & Qt::ShiftModifier)) {
-            if (!normalMode.isLast(EKey::SHIFT))
+            if (!normalMode.isLastEqual(EKey::SHIFT))
                 normalMode.addKey(EKey::SHIFT);
         }
     }
@@ -255,44 +254,48 @@ void MainWindow::deleteFile()
     }
 }
 
-void MainWindow::handleCommand()
+void MainWindow::onCommandLineEnter()
 {
     switch (mode) {
-    case Mode::SEARCH:
+    case Mode::COMMAND: {
+        const QString& operation = commandLine->text();
+        if (operation.isEmpty())
+            return;
+        const QStringList& substrings = operation.split(' ');
+
+        const QString& commandName = substrings.first().trimmed();
+        if (commandName == "mkdir") {
+            for (int i = 1; i < substrings.length(); ++i) {
+                model->mkdir(filesView->rootIndex(), substrings[i]);
+            }
+        } else if (commandName == "open") {
+            Platform::open(getCurrentFile().toStdWString().c_str());
+        } else if (commandName == "touch") {
+            const QString& currDir = getCurrentDirectory();
+            for (int i = 1; i < substrings.length(); ++i) {
+                const QString& newFilePath = currDir + QDir::separator() + substrings[i];
+                QFile newFile(newFilePath);
+                newFile.open(QIODevice::WriteOnly);
+            }
+        }
+        break;
+    }
+    case Mode::SEARCH: {
         getView()->keyboardSearch(commandLine->text());
-        switchToNormalMode();
-        return;
-    case Mode::RENAME:
+        break;
+    }
+    case Mode::RENAME: {
         const QFileInfo& info = model->fileInfo(getCurrentIndex());
         if (const QString& newName = commandLine->text();
                 !newName.isEmpty())
             QFile(info.filePath()).rename(info.path() + QDir::separator() + newName);
-        switchToNormalMode();
-        return;
+        break;
     }
-
-    const QString& operation = commandLine->text();
-    if (operation.isEmpty())
-        return;
-    const QStringList& substrings = operation.split(' ');
-
-    const QString& commandName = substrings.first().trimmed();
-    if (commandName == "mkdir") {
-        const QString& path = getCurrentDirectory();
-        for (int i = 1; i < substrings.length(); ++i) {
-            model->mkdir(filesView->rootIndex(), substrings[i]);
-        }
-    } else if (commandName == "open") {
-        Platform::open(getCurrentFile().toStdWString().c_str());
-    } else if (commandName == "touch") {
-        const QString& currDir = getCurrentDirectory();
-        for (int i = 1; i < substrings.length(); ++i) {
-            const QString& newFilePath = currDir + QDir::separator() + substrings[i];
-            QFile newFile(newFilePath);
-            newFile.open(QIODevice::WriteOnly);
-        }
+    case Mode::NORMAL: {
+        Q_ASSERT(false);
+        break;
     }
-
+    }
     switchToNormalMode();
 }
 
@@ -374,7 +377,7 @@ void NormalMode::addCommand(NormalOperation operation)
     operations.push_back(std::move(operation));
 }
 
-bool NormalMode::isLast(EKey key) const
+bool NormalMode::isLastEqual(EKey key) const
 {
     if (keySequence.empty())
         return false;
@@ -398,6 +401,8 @@ NormalMode::Status NormalMode::handle()
     using EqRes = NormalOperation::EqRes;
     for (const NormalOperation& operation : operations) {
         switch (operation.eq(keySequence)) {
+        case EqRes::FALSE:
+            break;
         case EqRes::MAYBE:
             std::get<bool>(result) = true;
             break;

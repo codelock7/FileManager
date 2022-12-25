@@ -77,7 +77,7 @@ class NormalMode {
 public:
     using Status = std::pair<bool, ENormalOperation>;
 
-    bool isLast(EKey) const;
+    bool isLastEqual(EKey) const;
     bool isEmptySequence() const;
     void addCommand(NormalOperation);
     void addKey(EKey);
@@ -139,7 +139,7 @@ private slots:
     void goToFall();
     void selectFirst();
     void deleteFile();
-    void handleCommand();
+    void onCommandLineEnter();
     void onRowsInserted(const QModelIndex& parent, int first, int last);
 
 private:

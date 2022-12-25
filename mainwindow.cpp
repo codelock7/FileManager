@@ -105,41 +105,8 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
     }
 
     switch (keyEvent->key()) {
-    case Qt::Key_C:
-        normalMode.addKey(EKey::C);
-        break;
-
-    case Qt::Key_D:
-        normalMode.addKey(EKey::D);
-        break;
-
-    case Qt::Key_G:
-        normalMode.addKey(EKey::G);
-        break;
-
-    case Qt::Key_L:
-        normalMode.addKey(EKey::L);
-        break;
-
-    case Qt::Key_H:
-        normalMode.addKey(EKey::H);
-        break;
-
-    case Qt::Key_J:
-        normalMode.addKey(EKey::J);
-        break;
-
-    case Qt::Key_K:
-        normalMode.addKey(EKey::K);
-        break;
-
-    case Qt::Key_W:
-        normalMode.addKey(EKey::W);
-        break;
-
     case Qt::Key_Escape:
-        normalMode.reset();
-        filesView->setFocus();
+        switchToNormalMode();
         return true;
 
     case Qt::Key_Colon:
@@ -152,8 +119,16 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
         return true;
 
     default:
+        if (keyEvent->key() >= Qt::Key_A && keyEvent->key() <= Qt::Key_Z) {
+            const int offset = keyEvent->key() - Qt::Key_A;
+            const auto key = static_cast<EKey>(static_cast<int>(EKey::A) + offset);
+            normalMode.addKey(key);
+            break;
+        }
         return false;
     }
+
+    ui->statusbar->showMessage(tr("rc: %1, ks: %2").arg(model->rowCount(getView()->rootIndex())).arg(normalMode.seq()));
 
     const NormalMode::Status status = normalMode.handle();
     if (std::get<bool>(status)) {
@@ -161,6 +136,7 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
         case ENormalOperation::NONE:
             break;
         case ENormalOperation::COMMAND_MODE:
+            mode = Mode::COMMAND;
             commandLine->setFocus();
             break;
         case ENormalOperation::OPEN_PARENT_DIRECTORY:
@@ -326,9 +302,19 @@ QModelIndex MainWindow::getCurrentIndex() const
 
 void MainWindow::switchToNormalMode()
 {
-    mode = Mode::NORMAL;
-    commandLine->clear();
-    getView()->setFocus();
+    switch (mode) {
+    case Mode::COMMAND:
+    case Mode::RENAME:
+    case Mode::SEARCH:
+        mode = Mode::NORMAL;
+        commandLine->clear();
+        getView()->setFocus();
+        break;
+
+    case Mode::NORMAL:
+        normalMode.reset();
+        break;
+    }
 }
 
 
@@ -439,4 +425,28 @@ int NormalOperation::eq(const Seq& rhs) const
 ENormalOperation NormalOperation::getType() const
 {
     return operation;
+}
+
+QString toString(const std::vector<EKey>& keys)
+{
+    QString result;
+    result.reserve(keys.size());
+    for (EKey key : keys) {
+        if (key >= EKey::A && key <= EKey::Z) {
+            const int offset = static_cast<int>(key) - static_cast<int>(EKey::A);
+            result.append('a' + offset);
+        }
+        switch (key) {
+        case EKey::CONTROL:
+            result.append('C');
+            break;
+        case EKey::SHIFT:
+            result.append('S');
+            break;
+        case EKey::META:
+            result.append('M');
+            break;
+        }
+    }
+    return result;
 }

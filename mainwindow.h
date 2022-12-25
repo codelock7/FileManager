@@ -30,14 +30,7 @@ enum class EKey {
     SHIFT,
     CONTROL,
     COLON,
-    C,
-    D,
-    G,
-    H,
-    J,
-    K,
-    L,
-    W,
+    A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
 
     COUNT,
 };
@@ -73,6 +66,8 @@ private:
     std::vector<EKey> keySequence;
 };
 
+QString toString(const std::vector<EKey>&);
+
 class NormalMode {
 public:
     using Status = std::pair<bool, ENormalOperation>;
@@ -83,6 +78,7 @@ public:
     void addKey(EKey);
     Status handle();
     void reset();
+    QString seq() const {return toString(keySequence);}
 
 private:
     std::vector<NormalOperation> commands;

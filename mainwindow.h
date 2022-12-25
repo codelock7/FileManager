@@ -21,6 +21,7 @@ enum class Mode {
     COMMAND,
     SEARCH,
     RENAME,
+    RENAME_FOR_COPY,
 };
 
 enum class EKey {
@@ -47,7 +48,9 @@ enum class ENormalOperation {
     SELECT_FIRST,
     SELECT_LAST,
     DELETE_FILE,
-    RENAME,
+    RENAME_FILE,
+    YANK_FILE,
+    PASTE_FILE,
 
     COUNT,
 };
@@ -146,6 +149,7 @@ private:
     QTableView* getView() const;
     QModelIndex getCurrentIndex() const;
     void switchToNormalMode();
+    void copyFile(const QString&);
 
 private:
     ViMode viMode;
@@ -156,4 +160,5 @@ private:
     QFileSystemModel* model;
     NormalMode normalMode;
     Mode mode = Mode::NORMAL;
+    QString pathCopy;
 };

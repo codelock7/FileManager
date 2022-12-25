@@ -14,6 +14,12 @@
 #define GET_CSTR(qStr) (qStr.toLocal8Bit().data())
 
 
+QString operator/(const QString& lhs, const QString& rhs)
+{
+    return lhs + QDir::separator() + rhs;
+}
+
+
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -48,7 +54,9 @@ MainWindow::MainWindow(QWidget *parent)
     normalMode.addCommand({ENormalOperation::SELECT_FIRST, {EKey::G, EKey::G}});
     normalMode.addCommand({ENormalOperation::SELECT_LAST, {EKey::SHIFT, EKey::G}});
     normalMode.addCommand({ENormalOperation::DELETE_FILE, {EKey::SHIFT, EKey::D}});
-    normalMode.addCommand({ENormalOperation::RENAME, {EKey::C, EKey::W}});
+    normalMode.addCommand({ENormalOperation::RENAME_FILE, {EKey::C, EKey::W}});
+    normalMode.addCommand({ENormalOperation::YANK_FILE, {EKey::Y, EKey::Y}});
+    normalMode.addCommand({ENormalOperation::PASTE_FILE, {EKey::P}});
 }
 
 MainWindow::~MainWindow()
@@ -174,10 +182,18 @@ void MainWindow::handleNormalOperation()
             deleteFile();
             break;
 
-        case ENormalOperation::RENAME:
+        case ENormalOperation::RENAME_FILE:
             mode = Mode::RENAME;
             commandLine->setFocus();
             commandLine->setText(model->fileName(getCurrentIndex()));
+            break;
+
+        case ENormalOperation::YANK_FILE:
+            pathCopy = model->filePath(getCurrentIndex());
+            break;
+
+        case ENormalOperation::PASTE_FILE:
+            copyFile(pathCopy);
             break;
         }
     }
@@ -273,7 +289,7 @@ void MainWindow::onCommandLineEnter()
         } else if (commandName == "touch") {
             const QString& currDir = getCurrentDirectory();
             for (int i = 1; i < substrings.length(); ++i) {
-                const QString& newFilePath = currDir + QDir::separator() + substrings[i];
+                const QString& newFilePath = currDir / substrings[i];
                 QFile newFile(newFilePath);
                 newFile.open(QIODevice::WriteOnly);
             }
@@ -287,14 +303,26 @@ void MainWindow::onCommandLineEnter()
     case Mode::RENAME: {
         const QFileInfo& info = model->fileInfo(getCurrentIndex());
         if (const QString& newName = commandLine->text();
-                !newName.isEmpty())
-            QFile(info.filePath()).rename(info.path() + QDir::separator() + newName);
+                !newName.isEmpty()) {
+            QFile::rename(info.filePath(), info.path() / newName);
+        }
         break;
     }
-    case Mode::NORMAL: {
+    case Mode::RENAME_FOR_COPY: {
+        const QString& destPath = getCurrentDirectory() / commandLine->text();
+        if (!QFile::copy(pathCopy, destPath)) {
+            if (!QFileInfo::exists(pathCopy))
+                ui->statusbar->showMessage("The file being copied no longer exists", 4000);
+            else if (QFileInfo::exists(destPath))
+                ui->statusbar->showMessage("The file being copied with that name already exists", 4000);
+            else
+                ui->statusbar->showMessage("Unexpected copy error", 4000);
+        }
+        break;
+    }
+    case Mode::NORMAL:
         Q_ASSERT(false);
         break;
-    }
     }
     switchToNormalMode();
 }
@@ -320,19 +348,36 @@ QModelIndex MainWindow::getCurrentIndex() const
 void MainWindow::switchToNormalMode()
 {
     switch (mode) {
-    case Mode::COMMAND:
-        [[fallthrough]];
-    case Mode::RENAME:
-        [[fallthrough]];
-    case Mode::SEARCH:
+    case Mode::NORMAL:
+        normalMode.reset();
+        break;
+    default:
         mode = Mode::NORMAL;
         commandLine->clear();
         getView()->setFocus();
         break;
 
-    case Mode::NORMAL:
-        normalMode.reset();
-        break;
+    }
+}
+
+void MainWindow::copyFile(const QString &filePath)
+{
+    if (filePath.isEmpty())
+        return;
+    const QFileInfo fileInfo(filePath);
+    const QString& newFileName = fileInfo.fileName();
+    const QString& newFilePath = getCurrentDirectory() / newFileName;
+    if (QFile::copy(filePath, newFilePath))
+        return;
+    if (!fileInfo.exists()) {
+        ui->statusbar->showMessage("The file being copied no longer exists", 4000);
+    } else if (QFileInfo::exists(newFilePath)) {
+        mode = Mode::RENAME_FOR_COPY;
+        commandLine->setFocus();
+        commandLine->setText(newFileName);
+        ui->statusbar->showMessage("Set a new name for the destination file");
+    } else {
+        ui->statusbar->showMessage("Enexpected copy error", 4000);
     }
 }
 

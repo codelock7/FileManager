@@ -97,9 +97,6 @@ void MainWindow::keyPressEvent(QKeyEvent* keyEvent)
 
 bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
 {
-    if (keyEvent->key() == 0)
-        return false;
-
     if (keyEvent->type() != QKeyEvent::KeyPress)
         return false;
 
@@ -285,54 +282,19 @@ void MainWindow::deleteFile()
 void MainWindow::onCommandLineEnter()
 {
     switch (mode) {
-    case Mode::COMMAND: {
-        const QString& operation = commandLine->text();
-        if (operation.isEmpty())
-            return;
-        const QStringList& substrings = operation.split(' ');
-
-        const QString& commandName = substrings.first().trimmed();
-        if (commandName == "mkdir") {
-            for (int i = 1; i < substrings.length(); ++i) {
-                model->mkdir(filesView->rootIndex(), substrings[i]);
-            }
-        } else if (commandName == "open") {
-            Platform::open(getCurrentFile().toStdWString().c_str());
-        } else if (commandName == "touch") {
-            const QString& currDir = getCurrentDirectory();
-            for (int i = 1; i < substrings.length(); ++i) {
-                const QString& newFilePath = currDir / substrings[i];
-                QFile newFile(newFilePath);
-                newFile.open(QIODevice::WriteOnly);
-            }
-        }
+    case Mode::COMMAND:
+        handleCommand();
         break;
-    }
-    case Mode::SEARCH: {
-        lastSearch = commandLine->text();
+    case Mode::SEARCH:
+        lastSearch = getCommandLineString();
         getView()->keyboardSearch(lastSearch);
         break;
-    }
-    case Mode::RENAME: {
-        const QFileInfo& info = model->fileInfo(getCurrentIndex());
-        if (const QString& newName = commandLine->text();
-                !newName.isEmpty()) {
-            QFile::rename(info.filePath(), info.path() / newName);
-        }
+    case Mode::RENAME:
+        handleRename();
         break;
-    }
-    case Mode::RENAME_FOR_COPY: {
-        const QString& destPath = getCurrentDirectory() / commandLine->text();
-        if (!QFile::copy(pathCopy, destPath)) {
-            if (!QFileInfo::exists(pathCopy))
-                showStatus("The file being copied no longer exists", 4);
-            else if (QFileInfo::exists(destPath))
-                showStatus("The file being copied with that name already exists", 4);
-            else
-                showStatus("Unexpected copy error", 4);
-        }
+    case Mode::RENAME_FOR_COPY:
+        handleRenameForCopy();
         break;
-    }
     case Mode::NORMAL:
         Q_ASSERT(false);
         break;
@@ -375,7 +337,6 @@ void MainWindow::switchToNormalMode()
         commandLine->clear();
         getView()->setFocus();
         break;
-
     }
 }
 
@@ -404,6 +365,54 @@ void MainWindow::showStatus(const QString& message, int seconds)
 {
     Q_ASSERT(seconds >= 0);
     ui->statusbar->showMessage(message, seconds * 1000);
+}
+
+void MainWindow::handleCommand()
+{
+    const QString& line = getCommandLineString();
+    if (line.isEmpty())
+        return;
+    const QStringList& substrings = line.split(' ', QString::SkipEmptyParts);
+    const QString& commandName = substrings.first().trimmed();
+    if (commandName == "mkdir") {
+        for (int i = 1; i < substrings.length(); ++i)
+            model->mkdir(filesView->rootIndex(), substrings[i]);
+    } else if (commandName == "open") {
+        Platform::open(getCurrentFile().toStdWString().c_str());
+    } else if (commandName == "touch") {
+        const QString& currDir = getCurrentDirectory();
+        for (int i = 1; i < substrings.length(); ++i) {
+            QFile newFile(currDir / substrings[i]);
+            newFile.open(QIODevice::WriteOnly);
+        }
+    }
+}
+
+void MainWindow::handleRename()
+{
+    const QString& newName = getCommandLineString();
+    if (newName.isEmpty())
+        return;
+    const QFileInfo& info = model->fileInfo(getCurrentIndex());
+    QFile::rename(info.filePath(), info.path() / newName);
+}
+
+void MainWindow::handleRenameForCopy()
+{
+    const QString& destPath = getCurrentDirectory() / getCommandLineString();
+    if (QFile::copy(pathCopy, destPath))
+        return;
+    if (!QFileInfo::exists(pathCopy))
+        showStatus("The file being copied no longer exists", 4);
+    else if (QFileInfo::exists(destPath))
+        showStatus("The file being copied with that name already exists", 4);
+    else
+        showStatus("Unexpected copy error", 4);
+}
+
+QString MainWindow::getCommandLineString() const
+{
+    return commandLine->text();
 }
 
 

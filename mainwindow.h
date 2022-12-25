@@ -153,6 +153,10 @@ private:
     void switchToNormalMode();
     void copyFile(const QString&);
     void showStatus(const QString&, int seconds = 0);
+    void handleCommand();
+    void handleRename();
+    void handleRenameForCopy();
+    QString getCommandLineString() const;
 
 private:
     ViMode viMode;

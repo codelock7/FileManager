@@ -56,14 +56,19 @@ enum class ENormalOperation {
 class NormalOperation {
 public:
     using Seq = std::vector<EKey>;
+    enum EqRes {
+        MAYBE,
+        FALSE,
+        TRUE,
+    };
 
     NormalOperation(ENormalOperation, Seq);
-    int eq(const Seq&) const;
+    EqRes eq(const Seq&) const;
     ENormalOperation getType() const;
 
 private:
     ENormalOperation operation;
-    std::vector<EKey> keySequence;
+    std::vector<EKey> keys;
 };
 
 QString toString(const std::vector<EKey>&);
@@ -81,7 +86,7 @@ public:
     QString seq() const {return toString(keySequence);}
 
 private:
-    std::vector<NormalOperation> commands;
+    std::vector<NormalOperation> operations;
     std::vector<EKey> keySequence;
 };
 
@@ -124,6 +129,7 @@ protected:
     int getCurrentRow() const;
     void keyPressEvent(QKeyEvent*) override;
     bool handleKeyPress(QObject*, QKeyEvent*);
+    void handleNormalOperation();
 
 private slots:
     void goToSelected();

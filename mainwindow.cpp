@@ -130,45 +130,59 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
 
     ui->statusbar->showMessage(tr("rc: %1, ks: %2").arg(model->rowCount(getView()->rootIndex())).arg(normalMode.seq()));
 
+    handleNormalOperation();
+    return true;
+}
+
+void MainWindow::handleNormalOperation()
+{
     const NormalMode::Status status = normalMode.handle();
     if (std::get<bool>(status)) {
         switch (std::get<ENormalOperation>(status)) {
         case ENormalOperation::NONE:
-            break;
+            return;
+
         case ENormalOperation::COMMAND_MODE:
             mode = Mode::COMMAND;
             commandLine->setFocus();
             break;
+
         case ENormalOperation::OPEN_PARENT_DIRECTORY:
             goToParent();
             break;
+
         case ENormalOperation::OPEN_CURRENT_DIRECTORY:
             goToSelected();
             break;
+
         case ENormalOperation::SELECT_NEXT:
             goToDown();
             break;
+
         case ENormalOperation::SELECT_PREVIOUS:
             goToUp();
             break;
+
         case ENormalOperation::SELECT_FIRST:
             selectFirst();
             break;
+
         case ENormalOperation::SELECT_LAST:
             goToFall();
             break;
+
         case ENormalOperation::DELETE_FILE:
             deleteFile();
             break;
+
         case ENormalOperation::RENAME:
             mode = Mode::RENAME;
             commandLine->setFocus();
             commandLine->setText(model->fileName(getCurrentIndex()));
             break;
         }
-        normalMode.reset();
     }
-    return true;
+    normalMode.reset();
 }
 
 void MainWindow::goToSelected()
@@ -355,7 +369,7 @@ bool ViMode::hasSequence() const
 
 void NormalMode::addCommand(NormalOperation operation)
 {
-    commands.push_back(std::move(operation));
+    operations.push_back(std::move(operation));
 }
 
 bool NormalMode::isLast(EKey key) const
@@ -377,22 +391,21 @@ void NormalMode::addKey(EKey key)
 
 NormalMode::Status NormalMode::handle()
 {
-    Status result;
+    Status result = {false, ENormalOperation::NONE};
 
-    for (const NormalOperation& operation : commands) {
-        const int status = operation.eq(keySequence);
-        switch (status) {
-        case -1:
+    using EqRes = NormalOperation::EqRes;
+    for (const NormalOperation& operation : operations) {
+        switch (operation.eq(keySequence)) {
+        case EqRes::MAYBE:
             std::get<bool>(result) = true;
             break;
-        case 1:
+        case EqRes::TRUE:
             std::get<bool>(result) = true;
             std::get<ENormalOperation>(result) = operation.getType();
             return result;
         }
     }
 
-    std::get<ENormalOperation>(result) = ENormalOperation::NONE;
     return result;
 }
 
@@ -401,25 +414,24 @@ void NormalMode::reset()
     keySequence.clear();
 }
 
-NormalOperation::NormalOperation(ENormalOperation cmd, Seq seq)
-    : operation(cmd)
-    , keySequence(std::move(seq))
+NormalOperation::NormalOperation(ENormalOperation operation, Seq keys)
+    : operation(operation)
+    , keys(std::move(keys))
 {
 }
 
-int NormalOperation::eq(const Seq& rhs) const
+NormalOperation::EqRes NormalOperation::eq(const Seq& seq) const
 {
-    Q_ASSERT(!rhs.empty());
-    if (keySequence.size() < rhs.size())
-        return -1;
-    if (keySequence.size() > rhs.size())
-        return 0;
-    const size_t len = keySequence.size();
-    for (size_t i = 0; i < len; ++i) {
-        if (keySequence[i] != rhs[i])
-            return 0;
+    Q_ASSERT(!seq.empty());
+    if (seq.size() > keys.size())
+        return EqRes::FALSE;
+    for (size_t i = 0; i < seq.size(); ++i) {
+        if (keys[i] != seq[i])
+            return EqRes::FALSE;
     }
-    return 1;
+    if (seq.size() != keys.size())
+        return EqRes::MAYBE;
+    return EqRes::TRUE;
 }
 
 ENormalOperation NormalOperation::getType() const

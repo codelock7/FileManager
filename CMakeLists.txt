@@ -29,13 +29,8 @@ find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Widgets REQUIRED)
 
 set(PROJECT_SOURCES
         main.cpp
-        mainwindow.cpp
-        mainwindow.h
-        mainwindow.ui
-        filemanager.h
-        filemanager.cpp
-        platform.h
-        platform.cpp
+        mainwindow.cpp mainwindow.h mainwindow.ui
+        platform.h platform.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)

@@ -27,8 +27,8 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
     QObject::connect(ui->statusbar, &QStatusBar::messageChanged, this, &MainWindow::onMessageChange);
 
-    filesView = ui->centralwidget->findChild<QTableView*>("filesView");
-    Q_ASSERT(filesView != nullptr);
+    fileViewer = ui->centralwidget->findChild<QTableView*>("fileViewer");
+    Q_ASSERT(fileViewer != nullptr);
 
     pathView = ui->centralwidget->findChild<QLabel*>("pathView");
     Q_ASSERT(pathView != nullptr);
@@ -43,9 +43,9 @@ MainWindow::MainWindow(QWidget *parent)
     model = new QFileSystemModel;
     model->setRootPath(QDir::currentPath());
     QObject::connect(model, &QFileSystemModel::rowsInserted, this, &MainWindow::onRowsInserted);
-    filesView->setModel(model);
-    filesView->installEventFilter(eater);
-    filesView->setColumnWidth(0, 400);
+    fileViewer->setModel(model);
+    fileViewer->installEventFilter(eater);
+    fileViewer->setColumnWidth(0, 400);
 
     normalMode.addCommand({ENormalOperation::COMMAND_MODE, {EKey::SHIFT, EKey::COLON}});
     normalMode.addCommand({ENormalOperation::OPEN_PARENT_DIRECTORY, {EKey::H}});
@@ -59,6 +59,21 @@ MainWindow::MainWindow(QWidget *parent)
     normalMode.addCommand({ENormalOperation::YANK_FILE, {EKey::Y, EKey::Y}});
     normalMode.addCommand({ENormalOperation::PASTE_FILE, {EKey::P}});
     normalMode.addCommand({ENormalOperation::SEARCH_NEXT, {EKey::N}});
+    normalMode.addCommand({ENormalOperation::EXIT, {EKey::CONTROL, EKey::Q}});
+
+    normalOperations[static_cast<size_t>(ENormalOperation::COMMAND_MODE)] = &MainWindow::activateCommandMode;
+    normalOperations[static_cast<size_t>(ENormalOperation::OPEN_PARENT_DIRECTORY)] = &MainWindow::openParentDirectory;
+    normalOperations[static_cast<size_t>(ENormalOperation::OPEN_CURRENT_DIRECTORY)] = &MainWindow::openCurrentDirectory;
+    normalOperations[static_cast<size_t>(ENormalOperation::SELECT_NEXT)] = &MainWindow::selectNext;
+    normalOperations[static_cast<size_t>(ENormalOperation::SELECT_PREVIOUS)] = &MainWindow::selectPrevious;
+    normalOperations[static_cast<size_t>(ENormalOperation::SELECT_FIRST)] = &MainWindow::selectFirst;
+    normalOperations[static_cast<size_t>(ENormalOperation::SELECT_LAST)] = &MainWindow::selectLast;
+    normalOperations[static_cast<size_t>(ENormalOperation::DELETE_FILE)] = &MainWindow::deleteFile;
+    normalOperations[static_cast<size_t>(ENormalOperation::RENAME_FILE)] = &MainWindow::renameFile;
+    normalOperations[static_cast<size_t>(ENormalOperation::YANK_FILE)] = &MainWindow::copyFilePath;
+    normalOperations[static_cast<size_t>(ENormalOperation::PASTE_FILE)] = &MainWindow::pasteFile;
+    normalOperations[static_cast<size_t>(ENormalOperation::SEARCH_NEXT)] = &MainWindow::searchNext;
+    normalOperations[static_cast<size_t>(ENormalOperation::EXIT)] = &MainWindow::exit;
 }
 
 MainWindow::~MainWindow()
@@ -78,13 +93,13 @@ QFileInfo MainWindow::getCurrentFileInfo() const
 
 QString MainWindow::getCurrentDirectory() const
 {
-    return model->filePath(filesView->rootIndex());
+    return model->filePath(fileViewer->rootIndex());
 }
 
 int MainWindow::getCurrentRow() const
 {
     const auto& currIndex = getCurrentIndex();
-    if (currIndex.parent() != filesView->rootIndex())
+    if (currIndex.parent() != fileViewer->rootIndex())
         return -1;
     return currIndex.row();
 }
@@ -126,7 +141,7 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
         break;
 
     case Qt::Key_Slash:
-        commandLine->setFocus();
+        activateCommandLine();
         mode = Mode::SEARCH;
         return true;
 
@@ -150,118 +165,74 @@ void MainWindow::handleNormalOperation()
 {
     const NormalMode::Status status = normalMode.handle();
     if (std::get<bool>(status)) {
-        switch (std::get<ENormalOperation>(status)) {
+        const auto operation = std::get<ENormalOperation>(status);
+        switch (operation) {
         case ENormalOperation::NONE:
             return;
-
-        case ENormalOperation::COMMAND_MODE:
-            mode = Mode::COMMAND;
-            commandLine->setFocus();
-            break;
-
-        case ENormalOperation::OPEN_PARENT_DIRECTORY:
-            goToParent();
-            break;
-
-        case ENormalOperation::OPEN_CURRENT_DIRECTORY:
-            goToSelected();
-            break;
-
-        case ENormalOperation::SELECT_NEXT:
-            goToDown();
-            break;
-
-        case ENormalOperation::SELECT_PREVIOUS:
-            goToUp();
-            break;
-
-        case ENormalOperation::SELECT_FIRST:
-            selectFirst();
-            break;
-
-        case ENormalOperation::SELECT_LAST:
-            goToFall();
-            break;
-
-        case ENormalOperation::DELETE_FILE:
-            deleteFile();
-            break;
-
-        case ENormalOperation::RENAME_FILE:
-            mode = Mode::RENAME;
-            commandLine->setFocus();
-            commandLine->setText(model->fileName(getCurrentIndex()));
-            break;
-
-        case ENormalOperation::YANK_FILE:
-            pathCopy = model->filePath(getCurrentIndex());
-            break;
-
-        case ENormalOperation::PASTE_FILE:
-            copyFile(pathCopy);
-            break;
-
-        case ENormalOperation::SEARCH_NEXT:
-            getView()->keyboardSearch(lastSearch);
+        default:
+            Q_ASSERT(operation != ENormalOperation::COUNT);
+            const size_t i = static_cast<size_t>(operation);
+            auto ptr = normalOperations[i];
+            (this->*ptr)();
             break;
         }
     }
     normalMode.reset();
 }
 
-void MainWindow::goToSelected()
+void MainWindow::openCurrentDirectory()
 {
     const QModelIndex& newIndex = getCurrentIndex();
     if (!model->isDir(newIndex))
         return;
-    filesView->setRootIndex(newIndex);
+    fileViewer->setRootIndex(newIndex);
     const QString& newPath = model->filePath(newIndex);
-    filesView->selectRow(0);
+    fileViewer->selectRow(0);
     pathView->setText(newPath);
 
     showStatus(tr("rc: %1").arg(model->rowCount(newIndex)));
 }
 
-void MainWindow::goToParent()
+void MainWindow::openParentDirectory()
 {
-    const QModelIndex& newRoot = filesView->rootIndex().parent();
-    filesView->setRootIndex(newRoot);
-    filesView->selectRow(0);
+    const QModelIndex& newRoot = fileViewer->rootIndex().parent();
+    fileViewer->setRootIndex(newRoot);
+    fileViewer->selectRow(0);
     pathView->setText(model->filePath(newRoot));
 
     showStatus(tr("rc: %1").arg(model->rowCount(newRoot)));
 }
 
-void MainWindow::goToDown()
+void MainWindow::selectNext()
 {
     const auto currRow = getCurrentRow();
     if (currRow == -1) {
-        filesView->selectRow(0);
+        fileViewer->selectRow(0);
         return;
     }
-    filesView->selectRow(currRow + 1);
+    fileViewer->selectRow(currRow + 1);
 }
 
-void MainWindow::goToUp()
+void MainWindow::selectPrevious()
 {
     const auto currRow = getCurrentRow();
     if (currRow == -1) {
-        filesView->selectRow(0);
+        fileViewer->selectRow(0);
         return;
     }
-    filesView->selectRow(currRow - 1);
+    fileViewer->selectRow(currRow - 1);
 }
 
-void MainWindow::goToFall()
+void MainWindow::selectLast()
 {
-    const int rowCount = model->rowCount(filesView->rootIndex());
+    const int rowCount = model->rowCount(fileViewer->rootIndex());
     qDebug("rowCount: %d", rowCount);
-    filesView->selectRow(rowCount - 1);
+    fileViewer->selectRow(rowCount - 1);
 }
 
 void MainWindow::selectFirst()
 {
-    filesView->selectRow(0);
+    fileViewer->selectRow(0);
 }
 
 void MainWindow::deleteFile()
@@ -317,12 +288,12 @@ void MainWindow::onMessageChange(const QString& message)
 
 QTableView *MainWindow::getView() const
 {
-    return filesView;
+    return fileViewer;
 }
 
 QModelIndex MainWindow::getCurrentIndex() const
 {
-    const QModelIndex& currIndex = filesView->currentIndex();
+    const QModelIndex& currIndex = fileViewer->currentIndex();
     return model->index(currIndex.row(), 0, currIndex.parent());
 }
 
@@ -353,8 +324,7 @@ void MainWindow::copyFile(const QString &filePath)
         showStatus("The file being copied no longer exists", 4);
     } else if (QFileInfo::exists(newFilePath)) {
         mode = Mode::RENAME_FOR_COPY;
-        commandLine->setFocus();
-        commandLine->setText(newFileName);
+        activateCommandLine(newFileName);
         showStatus("Set a new name for the destination file");
     } else {
         showStatus("Enexpected copy error", 4);
@@ -376,7 +346,7 @@ void MainWindow::handleCommand()
     const QString& commandName = substrings.first().trimmed();
     if (commandName == "mkdir") {
         for (int i = 1; i < substrings.length(); ++i)
-            model->mkdir(filesView->rootIndex(), substrings[i]);
+            model->mkdir(fileViewer->rootIndex(), substrings[i]);
     } else if (commandName == "open") {
         Platform::open(getCurrentFile().toStdWString().c_str());
     } else if (commandName == "touch") {
@@ -415,6 +385,45 @@ QString MainWindow::getCommandLineString() const
     return commandLine->text();
 }
 
+void MainWindow::activateCommandLine(const QString &initialValue)
+{
+    if (!initialValue.isEmpty())
+        commandLine->setText(initialValue);
+    commandLine->setFocus();
+}
+
+void MainWindow::activateCommandMode()
+{
+    mode = Mode::COMMAND;
+    activateCommandLine();
+}
+
+void MainWindow::renameFile()
+{
+    mode = Mode::RENAME;
+    activateCommandLine(model->fileName(getCurrentIndex()));
+}
+
+void MainWindow::copyFilePath()
+{
+    pathCopy = model->filePath(getCurrentIndex());
+}
+
+void MainWindow::pasteFile()
+{
+    copyFile(pathCopy);
+}
+
+void MainWindow::searchNext()
+{
+    getView()->keyboardSearch(lastSearch);
+}
+
+void MainWindow::exit()
+{
+    qApp->exit();
+}
+
 
 KeyPressEater::KeyPressEater(Handler handler)
     : keyEventHandler(std::move(handler))
@@ -431,25 +440,6 @@ bool KeyPressEater::eventFilter(QObject* object, QEvent* event)
     return true;
 }
 
-Mode ViMode::getCurrentMode() const
-{
-    return mode;
-}
-
-void ViMode::setMode(Mode newMode)
-{
-    mode = newMode;
-}
-
-void ViMode::reset()
-{
-    mode = Mode::NORMAL;
-}
-
-bool ViMode::hasSequence() const
-{
-    return true;
-}
 
 void NormalMode::addCommand(NormalOperation operation)
 {
@@ -528,7 +518,10 @@ ENormalOperation NormalOperation::getType() const
 QString toString(const std::vector<EKey>& keys)
 {
     QString result;
-    result.reserve(keys.size());
+    const int reserveSize = static_cast<int>(keys.size());
+    Q_ASSERT(reserveSize == keys.size());
+    result.reserve(reserveSize);
+
     for (EKey key : keys) {
         switch (key) {
         case EKey::CONTROL:

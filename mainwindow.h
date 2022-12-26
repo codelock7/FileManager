@@ -3,6 +3,7 @@
 #include <QMainWindow>
 #include <QFileInfo>
 #include <functional>
+#include <array>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -52,6 +53,7 @@ enum class ENormalOperation {
     YANK_FILE,
     PASTE_FILE,
     SEARCH_NEXT,
+    EXIT,
 
     COUNT,
 };
@@ -75,7 +77,9 @@ private:
     std::vector<EKey> keys;
 };
 
+
 QString toString(const std::vector<EKey>&);
+
 
 class NormalMode {
 public:
@@ -94,16 +98,6 @@ private:
     std::vector<EKey> keySequence;
 };
 
-class ViMode {
-public:
-    Mode getCurrentMode() const;
-    void setMode(Mode);
-    void reset();
-    bool hasSequence() const;
-
-private:
-    Mode mode = Mode::NORMAL;
-};
 
 class KeyPressEater : public QObject {
 public:
@@ -123,6 +117,9 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
+    using OperationFunction = void(MainWindow::*)();
+    using NormalOperations = std::array<OperationFunction, static_cast<size_t>(ENormalOperation::COUNT)>;
+
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
@@ -136,11 +133,11 @@ protected:
     void handleNormalOperation();
 
 private slots:
-    void goToSelected();
-    void goToParent();
-    void goToDown();
-    void goToUp();
-    void goToFall();
+    void openCurrentDirectory();
+    void openParentDirectory();
+    void selectNext();
+    void selectPrevious();
+    void selectLast();
     void selectFirst();
     void deleteFile();
     void onCommandLineEnter();
@@ -157,11 +154,18 @@ private:
     void handleRename();
     void handleRenameForCopy();
     QString getCommandLineString() const;
+    void activateCommandLine(const QString& initialValue = {});
+
+    void activateCommandMode();
+    void renameFile();
+    void copyFilePath();
+    void pasteFile();
+    void searchNext();
+    void exit();
 
 private:
-    ViMode viMode;
     Ui::MainWindow *ui;
-    QTableView* filesView;
+    QTableView* fileViewer;
     QLabel* pathView;
     QLineEdit* commandLine;
     QFileSystemModel* model;
@@ -169,4 +173,5 @@ private:
     Mode mode = Mode::NORMAL;
     QString pathCopy;
     QString lastSearch;
+    NormalOperations normalOperations;
 };

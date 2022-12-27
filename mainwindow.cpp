@@ -205,7 +205,7 @@ void MainWindow::openParentDirectory()
 
 void MainWindow::selectNext()
 {
-    const auto currRow = getCurrentRow();
+    const int currRow = getCurrentRow();
     if (currRow == -1) {
         fileViewer->selectRow(0);
         return;
@@ -215,7 +215,7 @@ void MainWindow::selectNext()
 
 void MainWindow::selectPrevious()
 {
-    const auto currRow = getCurrentRow();
+    const int currRow = getCurrentRow();
     if (currRow == -1) {
         fileViewer->selectRow(0);
         return;
@@ -226,7 +226,6 @@ void MainWindow::selectPrevious()
 void MainWindow::selectLast()
 {
     const int rowCount = model->rowCount(fileViewer->rootIndex());
-    qDebug("rowCount: %d", rowCount);
     fileViewer->selectRow(rowCount - 1);
 }
 
@@ -311,26 +310,6 @@ void MainWindow::switchToNormalMode()
     }
 }
 
-void MainWindow::copyFile(const QString &filePath)
-{
-    if (filePath.isEmpty())
-        return;
-    const QFileInfo fileInfo(filePath);
-    const QString& newFileName = fileInfo.fileName();
-    const QString& newFilePath = getCurrentDirectory() / newFileName;
-    if (QFile::copy(filePath, newFilePath))
-        return;
-    if (!fileInfo.exists()) {
-        showStatus("The file being copied no longer exists", 4);
-    } else if (QFileInfo::exists(newFilePath)) {
-        mode = Mode::RENAME_FOR_COPY;
-        activateCommandLine(newFileName);
-        showStatus("Set a new name for the destination file");
-    } else {
-        showStatus("Enexpected copy error", 4);
-    }
-}
-
 void MainWindow::showStatus(const QString& message, int seconds)
 {
     Q_ASSERT(seconds >= 0);
@@ -411,7 +390,22 @@ void MainWindow::copyFilePath()
 
 void MainWindow::pasteFile()
 {
-    copyFile(pathCopy);
+    if (pathCopy.isEmpty())
+        return;
+    const QFileInfo fileInfo(pathCopy);
+    const QString& newFileName = fileInfo.fileName();
+    const QString& newFilePath = getCurrentDirectory() / newFileName;
+    if (QFile::copy(pathCopy, newFilePath))
+        return;
+    if (!fileInfo.exists()) {
+        showStatus("The file being copied no longer exists", 4);
+    } else if (QFileInfo::exists(newFilePath)) {
+        mode = Mode::RENAME_FOR_COPY;
+        activateCommandLine(newFileName);
+        showStatus("Set a new name for the destination file");
+    } else {
+        showStatus("Enexpected copy error", 4);
+    }
 }
 
 void MainWindow::searchNext()

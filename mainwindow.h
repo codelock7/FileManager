@@ -148,7 +148,6 @@ private:
     QTableView* getView() const;
     QModelIndex getCurrentIndex() const;
     void switchToNormalMode();
-    void copyFile(const QString&);
     void showStatus(const QString&, int seconds = 0);
     void handleCommand();
     void handleRename();

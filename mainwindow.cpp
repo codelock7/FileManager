@@ -183,7 +183,7 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
         return false;
     }
 
-    showStatus(tr("rc: %1, ks: %2").arg(model->rowCount(getView()->rootIndex())).arg(normalMode.seq()));
+    showStatus(tr("rc: %1, ks: %2").arg(model->rowCount(fileViewer->rootIndex())).arg(normalMode.seq()));
 
     handleNormalOperation();
     return true;
@@ -285,7 +285,7 @@ void MainWindow::onCommandLineEnter()
         break;
     case Mode::SEARCH:
         lastSearch = getCommandLineString();
-        getView()->keyboardSearch(lastSearch);
+        fileViewer->keyboardSearch(lastSearch);
         break;
     case Mode::RENAME:
         handleRename();
@@ -303,14 +303,14 @@ void MainWindow::onCommandLineEnter()
 void MainWindow::onRowsInserted(const QModelIndex& parent, int first, int last)
 {
     qDebug("View updated");
-    getView()->selectRow(0);
+    fileViewer->selectRow(0);
     showStatus(tr("rc: %1").arg(model->rowCount(parent)));
 }
 
 void MainWindow::onMessageChange(const QString& message)
 {
     if (message.isEmpty())
-        showStatus(tr("rc: %1, ks: %2").arg(model->rowCount(getView()->rootIndex())).arg(normalMode.seq()));
+        showStatus(tr("rc: %1, ks: %2").arg(model->rowCount(fileViewer->rootIndex())).arg(normalMode.seq()));
 }
 
 void MainWindow::completeCommand()
@@ -366,11 +366,6 @@ void MainWindow::setColorScheme(const QStringList& args)
         setStyleSheet("background-color: rgb(0, 0, 0); color: rgb(255, 255, 255);");
 }
 
-QTableView *MainWindow::getView() const
-{
-    return fileViewer;
-}
-
 QModelIndex MainWindow::getCurrentIndex() const
 {
     const QModelIndex& currIndex = fileViewer->currentIndex();
@@ -390,12 +385,12 @@ void MainWindow::switchToNormalMode()
 
         mode = Mode::NORMAL;
         commandLine->clear();
-        getView()->setFocus();
+        fileViewer->setFocus();
         break;
     default:
         mode = Mode::NORMAL;
         commandLine->clear();
-        getView()->setFocus();
+        fileViewer->setFocus();
         break;
     }
 }
@@ -501,7 +496,7 @@ void MainWindow::pasteFile()
 
 void MainWindow::searchNext()
 {
-    getView()->keyboardSearch(lastSearch);
+    fileViewer->keyboardSearch(lastSearch);
 }
 
 void MainWindow::exit()

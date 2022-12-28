@@ -316,6 +316,8 @@ QTableView *MainWindow::getView() const
 QModelIndex MainWindow::getCurrentIndex() const
 {
     const QModelIndex& currIndex = fileViewer->currentIndex();
+    if (currIndex.column() == 0)
+        return currIndex;
     return model->index(currIndex.row(), 0, currIndex.parent());
 }
 

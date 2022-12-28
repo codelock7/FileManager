@@ -9,20 +9,16 @@
 #include <QLineEdit>
 #include "platform.h"
 #include <vector>
+#include "util.h"
 
 
 #define GET_CSTR(qStr) (qStr.toLocal8Bit().data())
 
 
-QString operator/(const QString& lhs, const QString& rhs)
-{
-    return lhs + QDir::separator() + rhs;
-}
-
-
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
+    , commandMaster(*this)
 {
     setStyleSheet("background-color: rgb(0, 0, 0); color: rgb(255, 255, 255);");
 
@@ -79,14 +75,6 @@ MainWindow::MainWindow(QWidget *parent)
     normalOperations[static_cast<size_t>(ENormalOperation::PASTE_FILE)] = &MainWindow::pasteFile;
     normalOperations[static_cast<size_t>(ENormalOperation::SEARCH_NEXT)] = &MainWindow::searchNext;
     normalOperations[static_cast<size_t>(ENormalOperation::EXIT)] = &MainWindow::exit;
-
-    commands = Commands({
-        std::make_pair(QString("cd"), &MainWindow::changeDirectory),
-        std::make_pair(QString("touch"), &MainWindow::createEmptyFile),
-        std::make_pair(QString("open"), &MainWindow::openFile),
-        std::make_pair(QString("mkdir"), &MainWindow::makeDirectory),
-        std::make_pair(QString("colorscheme"), &MainWindow::setColorScheme)
-    });
 }
 
 MainWindow::~MainWindow()
@@ -323,11 +311,11 @@ void MainWindow::completeCommand()
         if (charIter != line.rend())
             return;
         lastLine = std::move(line);
-        lastIter = commands.cbegin();
-    } else if (resetSearchIfEndReached()) {
+        lastIter = commandMaster.cbegin();
+    } else if (resetCompletionIfEndReached()) {
         return;
     }
-    for (; lastIter != commands.cend(); ++lastIter) {
+    for (; lastIter != commandMaster.cend(); ++lastIter) {
         const auto& [name, func] = *lastIter;
         if (lastLine.size() > name.size())
             continue;
@@ -337,14 +325,14 @@ void MainWindow::completeCommand()
             return;
         }
     }
-    resetSearchIfEndReached();
+    resetCompletionIfEndReached();
 }
 
-bool MainWindow::resetSearchIfEndReached()
+bool MainWindow::resetCompletionIfEndReached()
 {
-    if (lastIter != commands.cend())
+    if (lastIter != commandMaster.cend())
         return false;
-    lastIter = commands.cbegin();
+    lastIter = commandMaster.cbegin();
     commandLine->setText(lastLine);
     return true;
 }
@@ -352,18 +340,6 @@ bool MainWindow::resetSearchIfEndReached()
 void MainWindow::onCommandEdited(const QString& text)
 {
     lastLine.clear();
-}
-
-void MainWindow::setColorScheme(const QStringList& args)
-{
-    if (args.size() != 2) {
-        showStatus(tr("Invalid command signature"), 4);
-        return;
-    }
-    if (args.back() == "light")
-        setStyleSheet("");
-    else if (args.back() == "dark")
-        setStyleSheet("background-color: rgb(0, 0, 0); color: rgb(255, 255, 255);");
 }
 
 QModelIndex MainWindow::getCurrentIndex() const
@@ -395,10 +371,32 @@ void MainWindow::switchToNormalMode()
     }
 }
 
-void MainWindow::showStatus(const QString& message, int seconds)
+void MainWindow::showStatus(const QString& message, int secTimeout)
 {
-    Q_ASSERT(seconds >= 0);
-    ui->statusbar->showMessage(message, seconds * 1000);
+    Q_ASSERT(secTimeout >= 0);
+    ui->statusbar->showMessage(message, secTimeout * 1000);
+}
+
+void MainWindow::mkdir(const QString& dirName)
+{
+    model->mkdir(fileViewer->rootIndex(), dirName);
+}
+
+void MainWindow::setColorSchemeName(const QString& name)
+{
+    if (name == "light")
+        setStyleSheet("");
+    else if (name == "dark")
+        setStyleSheet("background-color: rgb(0, 0, 0); color: rgb(255, 255, 255);");
+}
+
+bool MainWindow::changeDirectoryIfCan(const QString &dirPath)
+{
+    const QModelIndex& rootIndex = model->index(dirPath);
+    if (!rootIndex.isValid())
+        return false;
+    setRootIndex(rootIndex);
+    return true;
 }
 
 void MainWindow::handleCommand()
@@ -406,14 +404,11 @@ void MainWindow::handleCommand()
     const QString& line = getCommandLineString();
     if (line.isEmpty())
         return;
-    const QStringList& keys = line.split(' ', QString::SkipEmptyParts);
-    const QString& commandName = keys.first().trimmed();
-    auto iter = commands.find(commandName);
-    if (iter == commands.end()) {
-        showStatus(tr("Unknown command"), 4);
+    const QStringList& args = line.split(' ', QString::SkipEmptyParts);
+    if (args.isEmpty())
         return;
-    }
-    (this->*(iter->second))(keys);
+    if (!commandMaster.runIfHas(args))
+        showStatus(tr("Unknown command"), 4);
 }
 
 void MainWindow::handleRename()
@@ -502,50 +497,6 @@ void MainWindow::searchNext()
 void MainWindow::exit()
 {
     qApp->exit();
-}
-
-void MainWindow::createEmptyFile(const QStringList& args)
-{
-    const QString& currDir = getCurrentDirectory();
-    for (int i = 1; i < args.length(); ++i) {
-        QFile newFile(currDir / args[i]);
-        newFile.open(QIODevice::WriteOnly);
-    }
-}
-
-void MainWindow::changeDirectory(const QStringList& args)
-{
-    if (args.size() != 2) {
-        showStatus("Invalid command signature", 4);
-        return;
-    }
-    QString newDirPath = args[1];
-    QFileInfo newDirInfo(newDirPath);
-    if (newDirInfo.isRelative()) {
-        newDirInfo.setFile(getCurrentDirectory() / newDirPath);
-        newDirPath = newDirInfo.absoluteFilePath();
-    }
-    if (!newDirInfo.exists()) {
-        showStatus("Target directory does not exist", 4);
-        return;
-    }
-    const QModelIndex& newRootIndex = model->index(newDirPath);
-    if (!newRootIndex.isValid()) {
-        showStatus("Unexpected error", 4);
-        return;
-    }
-    setRootIndex(newRootIndex);
-}
-
-void MainWindow::openFile(const QStringList&)
-{
-    Platform::open(getCurrentFile().toStdWString().c_str());
-}
-
-void MainWindow::makeDirectory(const QStringList& args)
-{
-    for (int i = 1; i < args.length(); ++i)
-        model->mkdir(fileViewer->rootIndex(), args[i]);
 }
 
 

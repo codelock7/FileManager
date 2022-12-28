@@ -5,6 +5,7 @@
 #include <functional>
 #include <array>
 #include <map>
+#include "commandmaster.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -115,29 +116,21 @@ private:
 };
 
 
-template<>
-struct std::less<QString> {
-    bool operator()(const QString& lhs, const QString& rhs) const { return lhs < rhs; }
-};
-
-
-class MainWindow : public QMainWindow
+class MainWindow : public QMainWindow, ICommandMasterOwner
 {
     Q_OBJECT
 
 public:
     using OperationFunction = void(MainWindow::*)();
     using NormalOperations = std::array<OperationFunction, static_cast<size_t>(ENormalOperation::COUNT)>;
-    using Command = void(MainWindow::*)(const QStringList&);
-    using Commands = std::map<QString, Command>;
 
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
 protected:
-    QString getCurrentFile() const;
+    QString getCurrentFile() const override;
     QFileInfo getCurrentFileInfo() const;
-    QString getCurrentDirectory() const;
+    QString getCurrentDirectory() const override;
     int getCurrentRow() const;
     void keyPressEvent(QKeyEvent*) override;
     bool eventFilter(QObject*, QEvent*) override;
@@ -158,12 +151,15 @@ private slots:
 
 private:
     void completeCommand();
-    bool resetSearchIfEndReached();
+    bool resetCompletionIfEndReached();
     void onCommandEdited(const QString&);
     QTableView* getView() const;
     QModelIndex getCurrentIndex() const;
     void switchToNormalMode();
-    void showStatus(const QString&, int seconds = 0);
+    void showStatus(const QString&, int secTimeout = 0) override;
+    void mkdir(const QString& dirName) override;
+    void setColorSchemeName(const QString&) override;
+    bool changeDirectoryIfCan(const QString& dirPath) override;
     void handleCommand();
     void handleRename();
     void handleRenameForCopy();
@@ -178,12 +174,6 @@ private:
     void searchNext();
     void exit();
 
-    void createEmptyFile(const QStringList& args);
-    void changeDirectory(const QStringList& args);
-    void openFile(const QStringList& args);
-    void makeDirectory(const QStringList& args);
-    void setColorScheme(const QStringList&);
-
 private:
     Ui::MainWindow *ui;
     QTableView* fileViewer;
@@ -195,7 +185,7 @@ private:
     QString pathCopy;
     QString lastSearch;
     NormalOperations normalOperations;
-    Commands commands;
     QString lastLine;
-    Commands::const_iterator lastIter;
+    CommandMaster commandMaster;
+    CommandMaster::Commands::const_iterator lastIter;
 };

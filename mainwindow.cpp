@@ -31,6 +31,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     fileViewer = ui->centralwidget->findChild<QTableView*>("fileViewer");
     Q_ASSERT(fileViewer != nullptr);
+    fileViewer->setFocus();
 
     pathViewer = ui->centralwidget->findChild<QLabel*>("pathViewer");
     Q_ASSERT(pathViewer != nullptr);

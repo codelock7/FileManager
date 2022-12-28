@@ -81,7 +81,8 @@ MainWindow::MainWindow(QWidget *parent)
         std::make_pair(QString("cd"), &MainWindow::changeDirectory),
         std::make_pair(QString("touch"), &MainWindow::createEmptyFile),
         std::make_pair(QString("open"), &MainWindow::openFile),
-        std::make_pair(QString("mkdir"), &MainWindow::makeDirectory)
+        std::make_pair(QString("mkdir"), &MainWindow::makeDirectory),
+        std::make_pair(QString("colorscheme"), &MainWindow::setColorScheme)
     });
 }
 
@@ -292,6 +293,18 @@ void MainWindow::onMessageChange(const QString& message)
 {
     if (message.isEmpty())
         showStatus(tr("rc: %1, ks: %2").arg(model->rowCount(getView()->rootIndex())).arg(normalMode.seq()));
+}
+
+void MainWindow::setColorScheme(const QStringList& args)
+{
+    if (args.size() != 2) {
+        showStatus(tr("Invalid command signature"), 4);
+        return;
+    }
+    if (args.back() == "light")
+        setStyleSheet("");
+    else if (args.back() == "dark")
+        setStyleSheet("background-color: rgb(0, 0, 0); color: rgb(255, 255, 255);");
 }
 
 QTableView *MainWindow::getView() const

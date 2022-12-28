@@ -178,6 +178,7 @@ private:
     void changeDirectory(const QStringList& args);
     void openFile(const QStringList& args);
     void makeDirectory(const QStringList& args);
+    void setColorScheme(const QStringList&);
 
 private:
     Ui::MainWindow *ui;

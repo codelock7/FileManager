@@ -126,6 +126,11 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
     if (keyEvent->type() != QKeyEvent::KeyPress)
         return false;
 
+    const int key = keyEvent->key();
+
+    if (key == Qt::Key_Alt || key == Qt::Key_Meta || key == Qt::Key_Shift || key == Qt::Key_Control)
+        return false;
+
     if (const Qt::KeyboardModifiers modifiers = keyEvent->modifiers();
             modifiers != Qt::NoModifier) {
         if (modifiers == (modifiers & Qt::ControlModifier)) {
@@ -142,7 +147,7 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
         }
     }
 
-    switch (keyEvent->key()) {
+    switch (key) {
     case Qt::Key_Escape:
         switchToNormalMode();
         return true;
@@ -157,10 +162,10 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
         return true;
 
     default:
-        if (keyEvent->key() >= Qt::Key_A && keyEvent->key() <= Qt::Key_Z) {
-            const int offset = keyEvent->key() - Qt::Key_A;
-            const auto key = static_cast<EKey>(static_cast<int>(EKey::A) + offset);
-            normalMode.addKey(key);
+        if (key >= Qt::Key_A && key <= Qt::Key_Z) {
+            const int offset = key - Qt::Key_A;
+            const auto trKey = static_cast<EKey>(static_cast<int>(EKey::A) + offset);
+            normalMode.addKey(trKey);
             break;
         }
         return false;

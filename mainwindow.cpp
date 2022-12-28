@@ -40,6 +40,7 @@ MainWindow::MainWindow(QWidget *parent)
     Q_ASSERT(commandLine != nullptr);
     commandLine->installEventFilter(this);
     QObject::connect(commandLine, &QLineEdit::returnPressed, this, &MainWindow::onCommandLineEnter);
+    QObject::connect(commandLine, &QLineEdit::textEdited, this, &MainWindow::onCommandEdited);
 
     static auto const eater = new KeyPressEater(
         std::bind(&MainWindow::handleKeyPress, this, std::placeholders::_1, std::placeholders::_2)
@@ -314,17 +315,43 @@ void MainWindow::onMessageChange(const QString& message)
 
 void MainWindow::completeCommand()
 {
-    const QString& line = commandLine->text();
-    if (line.isEmpty())
+    if (lastLine.isEmpty()) {
+        QString line = commandLine->text();
+        if (line.isEmpty())
+            return;
+        auto charIter = std::find(line.rbegin(), line.rend(), QChar(' '));
+        if (charIter != line.rend())
+            return;
+        lastLine = std::move(line);
+        lastIter = commands.cbegin();
+    } else if (resetSearchIfEndReached()) {
         return;
-    auto iter = std::find(line.rbegin(), line.rend(), QChar(' '));
-    if (iter != line.rend())
-        return;
-    for (const auto& [name, func] : commands) {
-        if (!name.startsWith(line))
-            continue;
-        commandLine->setText(name);
     }
+    for (; lastIter != commands.cend(); ++lastIter) {
+        const auto& [name, func] = *lastIter;
+        if (lastLine.size() > name.size())
+            continue;
+        if (name.startsWith(lastLine)) {
+            commandLine->setText(name);
+            ++lastIter;
+            return;
+        }
+    }
+    resetSearchIfEndReached();
+}
+
+bool MainWindow::resetSearchIfEndReached()
+{
+    if (lastIter != commands.cend())
+        return false;
+    lastIter = commands.cbegin();
+    commandLine->setText(lastLine);
+    return true;
+}
+
+void MainWindow::onCommandEdited(const QString& text)
+{
+    lastLine.clear();
 }
 
 void MainWindow::setColorScheme(const QStringList& args)
@@ -357,6 +384,13 @@ void MainWindow::switchToNormalMode()
     switch (mode) {
     case Mode::NORMAL:
         normalMode.reset();
+        break;
+    case Mode::COMMAND:
+        lastLine.clear();
+
+        mode = Mode::NORMAL;
+        commandLine->clear();
+        getView()->setFocus();
         break;
     default:
         mode = Mode::NORMAL;

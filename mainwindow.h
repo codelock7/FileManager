@@ -158,6 +158,8 @@ private slots:
 
 private:
     void completeCommand();
+    bool resetSearchIfEndReached();
+    void onCommandEdited(const QString&);
     QTableView* getView() const;
     QModelIndex getCurrentIndex() const;
     void switchToNormalMode();
@@ -194,4 +196,6 @@ private:
     QString lastSearch;
     NormalOperations normalOperations;
     Commands commands;
+    QString lastLine;
+    Commands::const_iterator lastIter;
 };

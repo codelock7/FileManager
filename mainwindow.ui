@@ -20,7 +20,7 @@ color: rgb(255, 255, 255);</string>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
     <item>
-     <widget class="QLabel" name="pathView">
+     <widget class="QLabel" name="pathViewer">
       <property name="text">
        <string>TextLabel</string>
       </property>

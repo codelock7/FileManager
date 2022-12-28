@@ -38,6 +38,9 @@ enum class EKey {
 };
 
 
+using KeySequence = std::vector<EKey>;
+
+
 enum class ENormalOperation {
     NONE,
     RESET,
@@ -61,20 +64,19 @@ enum class ENormalOperation {
 
 class NormalOperation {
 public:
-    using Seq = std::vector<EKey>;
-    enum EqRes {
+    enum CompareResult {
         MAYBE,
         FALSE,
         TRUE,
     };
 
-    NormalOperation(ENormalOperation, Seq);
-    EqRes eq(const Seq&) const;
+    NormalOperation(ENormalOperation, KeySequence);
+    CompareResult compareKeySequence(const KeySequence&) const;
     ENormalOperation getType() const;
 
 private:
     ENormalOperation operation;
-    std::vector<EKey> keys;
+    KeySequence keys;
 };
 
 
@@ -95,7 +97,7 @@ public:
 
 private:
     std::vector<NormalOperation> operations;
-    std::vector<EKey> keySequence;
+    KeySequence keySequence;
 };
 
 
@@ -165,7 +167,7 @@ private:
 private:
     Ui::MainWindow *ui;
     QTableView* fileViewer;
-    QLabel* pathView;
+    QLabel* pathViewer;
     QLineEdit* commandLine;
     QFileSystemModel* model;
     NormalMode normalMode;

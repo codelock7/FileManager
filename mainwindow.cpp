@@ -30,8 +30,8 @@ MainWindow::MainWindow(QWidget *parent)
     fileViewer = ui->centralwidget->findChild<QTableView*>("fileViewer");
     Q_ASSERT(fileViewer != nullptr);
 
-    pathView = ui->centralwidget->findChild<QLabel*>("pathView");
-    Q_ASSERT(pathView != nullptr);
+    pathViewer = ui->centralwidget->findChild<QLabel*>("pathViewer");
+    Q_ASSERT(pathViewer != nullptr);
 
     commandLine = ui->centralwidget->findChild<QLineEdit*>("commandLine");
     Q_ASSERT(commandLine != nullptr);
@@ -188,7 +188,7 @@ void MainWindow::openCurrentDirectory()
     fileViewer->setRootIndex(newIndex);
     const QString& newPath = model->filePath(newIndex);
     fileViewer->selectRow(0);
-    pathView->setText(newPath);
+    pathViewer->setText(newPath);
 
     showStatus(tr("rc: %1").arg(model->rowCount(newIndex)));
 }
@@ -198,7 +198,7 @@ void MainWindow::openParentDirectory()
     const QModelIndex& newRoot = fileViewer->rootIndex().parent();
     fileViewer->setRootIndex(newRoot);
     fileViewer->selectRow(0);
-    pathView->setText(model->filePath(newRoot));
+    pathViewer->setText(model->filePath(newRoot));
 
     showStatus(tr("rc: %1").arg(model->rowCount(newRoot)));
 }
@@ -461,15 +461,15 @@ NormalMode::Status NormalMode::handle()
 {
     Status result = {false, ENormalOperation::NONE};
 
-    using EqRes = NormalOperation::EqRes;
+    using CompareResult = NormalOperation::CompareResult;
     for (const NormalOperation& operation : operations) {
-        switch (operation.eq(keySequence)) {
-        case EqRes::FALSE:
+        switch (operation.compareKeySequence(keySequence)) {
+        case CompareResult::FALSE:
             break;
-        case EqRes::MAYBE:
+        case CompareResult::MAYBE:
             std::get<bool>(result) = true;
             break;
-        case EqRes::TRUE:
+        case CompareResult::TRUE:
             std::get<bool>(result) = true;
             std::get<ENormalOperation>(result) = operation.getType();
             return result;
@@ -484,24 +484,24 @@ void NormalMode::reset()
     keySequence.clear();
 }
 
-NormalOperation::NormalOperation(ENormalOperation operation, Seq keys)
+NormalOperation::NormalOperation(ENormalOperation operation, KeySequence keys)
     : operation(operation)
     , keys(std::move(keys))
 {
 }
 
-NormalOperation::EqRes NormalOperation::eq(const Seq& seq) const
+NormalOperation::CompareResult NormalOperation::compareKeySequence(const KeySequence& seq) const
 {
     Q_ASSERT(!seq.empty());
     if (seq.size() > keys.size())
-        return EqRes::FALSE;
+        return CompareResult::FALSE;
     for (size_t i = 0; i < seq.size(); ++i) {
         if (keys[i] != seq[i])
-            return EqRes::FALSE;
+            return CompareResult::FALSE;
     }
     if (seq.size() != keys.size())
-        return EqRes::MAYBE;
-    return EqRes::TRUE;
+        return CompareResult::MAYBE;
+    return CompareResult::TRUE;
 }
 
 ENormalOperation NormalOperation::getType() const

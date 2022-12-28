@@ -4,6 +4,7 @@
 #include <QFileInfo>
 #include <functional>
 #include <array>
+#include <map>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -114,6 +115,12 @@ private:
 };
 
 
+template<>
+struct std::less<QString> {
+    bool operator()(const QString& lhs, const QString& rhs) const { return lhs < rhs; }
+};
+
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -121,6 +128,8 @@ class MainWindow : public QMainWindow
 public:
     using OperationFunction = void(MainWindow::*)();
     using NormalOperations = std::array<OperationFunction, static_cast<size_t>(ENormalOperation::COUNT)>;
+    using Command = void(MainWindow::*)(const QStringList&);
+    using Commands = std::map<QString, Command>;
 
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
@@ -156,6 +165,7 @@ private:
     void handleRenameForCopy();
     QString getCommandLineString() const;
     void activateCommandLine(const QString& initialValue = {});
+    void setRootIndex(const QModelIndex&);
 
     void activateCommandMode();
     void renameFile();
@@ -163,6 +173,11 @@ private:
     void pasteFile();
     void searchNext();
     void exit();
+
+    void createEmptyFile(const QStringList& args);
+    void changeDirectory(const QStringList& args);
+    void openFile(const QStringList& args);
+    void makeDirectory(const QStringList& args);
 
 private:
     Ui::MainWindow *ui;
@@ -175,4 +190,5 @@ private:
     QString pathCopy;
     QString lastSearch;
     NormalOperations normalOperations;
+    Commands commands;
 };

@@ -74,6 +74,13 @@ MainWindow::MainWindow(QWidget *parent)
     normalOperations[static_cast<size_t>(ENormalOperation::PASTE_FILE)] = &MainWindow::pasteFile;
     normalOperations[static_cast<size_t>(ENormalOperation::SEARCH_NEXT)] = &MainWindow::searchNext;
     normalOperations[static_cast<size_t>(ENormalOperation::EXIT)] = &MainWindow::exit;
+
+    commands = Commands({
+        std::make_pair(QString("cd"), &MainWindow::changeDirectory),
+        std::make_pair(QString("touch"), &MainWindow::createEmptyFile),
+        std::make_pair(QString("open"), &MainWindow::openFile),
+        std::make_pair(QString("mkdir"), &MainWindow::makeDirectory)
+    });
 }
 
 MainWindow::~MainWindow()
@@ -165,7 +172,7 @@ void MainWindow::handleNormalOperation()
 {
     const NormalMode::Status status = normalMode.handle();
     if (std::get<bool>(status)) {
-        const auto operation = std::get<ENormalOperation>(status);
+        const auto& operation = std::get<ENormalOperation>(status);
         switch (operation) {
         case ENormalOperation::NONE:
             return;
@@ -321,20 +328,14 @@ void MainWindow::handleCommand()
     const QString& line = getCommandLineString();
     if (line.isEmpty())
         return;
-    const QStringList& substrings = line.split(' ', QString::SkipEmptyParts);
-    const QString& commandName = substrings.first().trimmed();
-    if (commandName == "mkdir") {
-        for (int i = 1; i < substrings.length(); ++i)
-            model->mkdir(fileViewer->rootIndex(), substrings[i]);
-    } else if (commandName == "open") {
-        Platform::open(getCurrentFile().toStdWString().c_str());
-    } else if (commandName == "touch") {
-        const QString& currDir = getCurrentDirectory();
-        for (int i = 1; i < substrings.length(); ++i) {
-            QFile newFile(currDir / substrings[i]);
-            newFile.open(QIODevice::WriteOnly);
-        }
+    const QStringList& keys = line.split(' ', QString::SkipEmptyParts);
+    const QString& commandName = keys.first().trimmed();
+    auto iter = commands.find(commandName);
+    if (iter == commands.end()) {
+        showStatus(tr("Unknown command"), 4);
+        return;
     }
+    (this->*(iter->second))(keys);
 }
 
 void MainWindow::handleRename()
@@ -369,6 +370,13 @@ void MainWindow::activateCommandLine(const QString &initialValue)
     if (!initialValue.isEmpty())
         commandLine->setText(initialValue);
     commandLine->setFocus();
+}
+
+void MainWindow::setRootIndex(const QModelIndex& newRootIndex)
+{
+    fileViewer->setRootIndex(newRootIndex);
+    pathViewer->setText(model->filePath(newRootIndex));
+    fileViewer->selectRow(0);
 }
 
 void MainWindow::activateCommandMode()
@@ -416,6 +424,50 @@ void MainWindow::searchNext()
 void MainWindow::exit()
 {
     qApp->exit();
+}
+
+void MainWindow::createEmptyFile(const QStringList& args)
+{
+    const QString& currDir = getCurrentDirectory();
+    for (int i = 1; i < args.length(); ++i) {
+        QFile newFile(currDir / args[i]);
+        newFile.open(QIODevice::WriteOnly);
+    }
+}
+
+void MainWindow::changeDirectory(const QStringList& args)
+{
+    if (args.size() != 2) {
+        showStatus("Invalid command signature", 4);
+        return;
+    }
+    QString newDirPath = args[1];
+    QFileInfo newDirInfo(newDirPath);
+    if (newDirInfo.isRelative()) {
+        newDirInfo.setFile(getCurrentDirectory() / newDirPath);
+        newDirPath = newDirInfo.absoluteFilePath();
+    }
+    if (!newDirInfo.exists()) {
+        showStatus("Target directory does not exist", 4);
+        return;
+    }
+    const QModelIndex& newRootIndex = model->index(newDirPath);
+    if (!newRootIndex.isValid()) {
+        showStatus("Unexpected error", 4);
+        return;
+    }
+    setRootIndex(newRootIndex);
+}
+
+void MainWindow::openFile(const QStringList&)
+{
+    Platform::open(getCurrentFile().toStdWString().c_str());
+}
+
+void MainWindow::makeDirectory(const QStringList& args)
+{
+    for (int i = 1; i < args.length(); ++i)
+        model->mkdir(fileViewer->rootIndex(), args[i]);
 }
 
 

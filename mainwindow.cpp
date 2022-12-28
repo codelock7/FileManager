@@ -38,6 +38,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     commandLine = ui->centralwidget->findChild<QLineEdit*>("commandLine");
     Q_ASSERT(commandLine != nullptr);
+    commandLine->installEventFilter(this);
     QObject::connect(commandLine, &QLineEdit::returnPressed, this, &MainWindow::onCommandLineEnter);
 
     static auto const eater = new KeyPressEater(
@@ -119,6 +120,16 @@ void MainWindow::keyPressEvent(QKeyEvent* keyEvent)
 {
     QMainWindow::keyPressEvent(keyEvent);
     handleKeyPress(this, keyEvent);
+}
+
+bool MainWindow::eventFilter(QObject* object, QEvent* event)
+{
+    if (object == commandLine && mode == Mode::COMMAND && event->type() == QEvent::KeyPress) {
+        auto const keyEvent = static_cast<QKeyEvent*>(event);
+        if (keyEvent->key() == Qt::Key_Tab)
+            completeCommand();
+    }
+    return QObject::eventFilter(object, event);
 }
 
 bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
@@ -299,6 +310,21 @@ void MainWindow::onMessageChange(const QString& message)
 {
     if (message.isEmpty())
         showStatus(tr("rc: %1, ks: %2").arg(model->rowCount(getView()->rootIndex())).arg(normalMode.seq()));
+}
+
+void MainWindow::completeCommand()
+{
+    const QString& line = commandLine->text();
+    if (line.isEmpty())
+        return;
+    auto iter = std::find(line.rbegin(), line.rend(), QChar(' '));
+    if (iter != line.rend())
+        return;
+    for (const auto& [name, func] : commands) {
+        if (!name.startsWith(line))
+            continue;
+        commandLine->setText(name);
+    }
 }
 
 void MainWindow::setColorScheme(const QStringList& args)

@@ -140,6 +140,7 @@ protected:
     QString getCurrentDirectory() const;
     int getCurrentRow() const;
     void keyPressEvent(QKeyEvent*) override;
+    bool eventFilter(QObject*, QEvent*) override;
     bool handleKeyPress(QObject*, QKeyEvent*);
     void handleNormalOperation();
 
@@ -156,6 +157,7 @@ private slots:
     void onMessageChange(const QString&);
 
 private:
+    void completeCommand();
     QTableView* getView() const;
     QModelIndex getCurrentIndex() const;
     void switchToNormalMode();

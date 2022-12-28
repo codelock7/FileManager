@@ -24,6 +24,8 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
 {
+    setStyleSheet("background-color: rgb(0, 0, 0); color: rgb(255, 255, 255);");
+
     ui->setupUi(this);
     QObject::connect(ui->statusbar, &QStatusBar::messageChanged, this, &MainWindow::onMessageChange);
 

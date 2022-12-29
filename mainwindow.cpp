@@ -19,6 +19,7 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
     , commandMaster(*this)
+    , commandCompletion(commandMaster)
 {
     setStyleSheet("background-color: rgb(0, 0, 0); color: rgb(255, 255, 255);");
 
@@ -52,7 +53,6 @@ MainWindow::MainWindow(QWidget *parent)
     Q_ASSERT(commandLine != nullptr);
     commandLine->installEventFilter(this);
     QObject::connect(commandLine, &QLineEdit::returnPressed, this, &MainWindow::onCommandLineEnter);
-    QObject::connect(commandLine, &QLineEdit::textEdited, this, &MainWindow::onCommandEdited);
 
     static auto const eater = new KeyPressEater(
         std::bind(&MainWindow::handleKeyPress, this, std::placeholders::_1, std::placeholders::_2)
@@ -91,6 +91,8 @@ MainWindow::MainWindow(QWidget *parent)
     normalOperations[static_cast<size_t>(ENormalOperation::PASTE_FILE)] = &MainWindow::pasteFile;
     normalOperations[static_cast<size_t>(ENormalOperation::SEARCH_NEXT)] = &MainWindow::searchNext;
     normalOperations[static_cast<size_t>(ENormalOperation::EXIT)] = &MainWindow::exit;
+
+    commandCompletion.bindWidget(*commandLine);
 }
 
 MainWindow::~MainWindow()
@@ -125,16 +127,6 @@ void MainWindow::keyPressEvent(QKeyEvent* keyEvent)
 {
     QMainWindow::keyPressEvent(keyEvent);
     handleKeyPress(this, keyEvent);
-}
-
-bool MainWindow::eventFilter(QObject* object, QEvent* event)
-{
-    if (object == commandLine && mode == Mode::COMMAND && event->type() == QEvent::KeyPress) {
-        auto const keyEvent = static_cast<QKeyEvent*>(event);
-        if (keyEvent->key() == Qt::Key_Tab)
-            completeCommand();
-    }
-    return QObject::eventFilter(object, event);
 }
 
 bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
@@ -327,47 +319,6 @@ void MainWindow::onMessageChange(const QString& message)
         showStatus(tr("rc: %1, ks: %2").arg(model->rowCount(fileViewer->rootIndex())).arg(normalMode.seq()));
 }
 
-void MainWindow::completeCommand()
-{
-    if (lastLine.isEmpty()) {
-        QString line = commandLine->text();
-        if (line.isEmpty())
-            return;
-        auto charIter = std::find(line.rbegin(), line.rend(), QChar(' '));
-        if (charIter != line.rend())
-            return;
-        lastLine = std::move(line);
-        lastIter = commandMaster.cbegin();
-    } else if (resetCompletionIfEndReached()) {
-        return;
-    }
-    for (; lastIter != commandMaster.cend(); ++lastIter) {
-        const auto& [name, func] = *lastIter;
-        if (lastLine.size() > name.size())
-            continue;
-        if (name.startsWith(lastLine)) {
-            commandLine->setText(name);
-            ++lastIter;
-            return;
-        }
-    }
-    resetCompletionIfEndReached();
-}
-
-bool MainWindow::resetCompletionIfEndReached()
-{
-    if (lastIter != commandMaster.cend())
-        return false;
-    lastIter = commandMaster.cbegin();
-    commandLine->setText(lastLine);
-    return true;
-}
-
-void MainWindow::onCommandEdited(const QString& text)
-{
-    lastLine.clear();
-}
-
 QModelIndex MainWindow::getCurrentIndex() const
 {
     const QModelIndex& currIndex = fileViewer->currentIndex();
@@ -383,7 +334,8 @@ void MainWindow::switchToNormalMode()
         normalMode.reset();
         break;
     case Mode::COMMAND:
-        lastLine.clear();
+        if (commandCompletion.isActivated())
+            commandCompletion.deactivate();
 
         mode = Mode::NORMAL;
         commandLine->clear();
@@ -498,6 +450,7 @@ void MainWindow::setRootIndex(const QModelIndex& newRootIndex)
 void MainWindow::activateCommandMode()
 {
     mode = Mode::COMMAND;
+    commandCompletion.activate();
     activateCommandLine();
 }
 

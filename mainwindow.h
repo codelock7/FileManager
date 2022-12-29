@@ -6,6 +6,7 @@
 #include <array>
 #include <map>
 #include "commandmaster.h"
+#include "commandcompletion.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -133,7 +134,6 @@ protected:
     QString getCurrentDirectory() const override;
     int getCurrentRow() const;
     void keyPressEvent(QKeyEvent*) override;
-    bool eventFilter(QObject*, QEvent*) override;
     bool handleKeyPress(QObject*, QKeyEvent*);
     void handleNormalOperation();
 
@@ -152,8 +152,6 @@ private slots:
 private:
     void completeCommand();
     bool resetCompletionIfEndReached();
-    void onCommandEdited(const QString&);
-    QTableView* getView() const;
     QModelIndex getCurrentIndex() const;
     void switchToNormalMode();
     void showStatus(const QString&, int secTimeout = 0) override;
@@ -185,7 +183,6 @@ private:
     QString pathCopy;
     QString lastSearch;
     NormalOperations normalOperations;
-    QString lastLine;
     CommandMaster commandMaster;
-    CommandMaster::Commands::const_iterator lastIter;
+    CommandCompletion commandCompletion;
 };

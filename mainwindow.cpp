@@ -128,8 +128,18 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
 
     const int key = keyEvent->key();
 
-    if (key == Qt::Key_Alt || key == Qt::Key_Meta || key == Qt::Key_Shift || key == Qt::Key_Control)
-        return false;
+    switch (key) {
+    case Qt::Key_Alt:
+        [[fallthrough]];
+    case Qt::Key_Meta:
+        [[fallthrough]];
+    case Qt::Key_Shift:
+        [[fallthrough]];
+    case Qt::Key_Control:
+        [[fallthrough]];
+    case Qt::Key_Tab:
+        return true;
+    }
 
     if (const Qt::KeyboardModifiers modifiers = keyEvent->modifiers();
             modifiers != Qt::NoModifier) {

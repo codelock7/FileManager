@@ -29,6 +29,22 @@ MainWindow::MainWindow(QWidget *parent)
     Q_ASSERT(fileViewer != nullptr);
     fileViewer->setFocus();
 
+    qApp->setStyleSheet(
+        "QTableView {"
+        "    outline: 0;"
+        "    selection-color: black;"
+        "    selection-background-color: yellow;"
+        "}"
+        "QTablView::item {"
+        "    background-color: yellow;"
+        "}"
+        "QTableView::item:focus {"
+        "    color: black;"
+        "    background-color: yellow;"
+        "    border: 0px;"
+        "}"
+    );
+
     pathViewer = ui->centralwidget->findChild<QLabel*>("pathViewer");
     Q_ASSERT(pathViewer != nullptr);
 
@@ -394,10 +410,27 @@ void MainWindow::mkdir(const QString& dirName)
 
 void MainWindow::setColorSchemeName(const QString& name)
 {
-    if (name == "light")
+    if (name == "light") {
         setStyleSheet("");
-    else if (name == "dark")
+        qApp->setStyleSheet("");
+    } else if (name == "dark") {
         setStyleSheet("background-color: rgb(0, 0, 0); color: rgb(255, 255, 255);");
+        qApp->setStyleSheet(
+            "QTableView {"
+            "    outline: 0;"
+            "    selection-color: black;"
+            "    selection-background-color: yellow;"
+            "}"
+            "QTablView::item {"
+            "    background-color: yellow;"
+            "}"
+            "QTableView::item:focus {"
+            "    color: black;"
+            "    background-color: yellow;"
+            "    border: 0px;"
+            "}"
+        );
+    }
 }
 
 bool MainWindow::changeDirectoryIfCan(const QString &dirPath)

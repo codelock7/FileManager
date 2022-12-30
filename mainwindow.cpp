@@ -64,7 +64,6 @@ MainWindow::MainWindow(QWidget *parent)
     fileViewer->installEventFilter(eater);
     fileViewer->setColumnWidth(0, 400);
 
-    normalMode.addCommand({ENormalOperation::COMMAND_MODE, {EKey::SHIFT, EKey::COLON}});
     normalMode.addCommand({ENormalOperation::OPEN_PARENT_DIRECTORY, {EKey::H}});
     normalMode.addCommand({ENormalOperation::OPEN_CURRENT_DIRECTORY, {EKey::L}});
     normalMode.addCommand({ENormalOperation::SELECT_NEXT, {EKey::J}});
@@ -77,20 +76,6 @@ MainWindow::MainWindow(QWidget *parent)
     normalMode.addCommand({ENormalOperation::PASTE_FILE, {EKey::P}});
     normalMode.addCommand({ENormalOperation::SEARCH_NEXT, {EKey::N}});
     normalMode.addCommand({ENormalOperation::EXIT, {EKey::CONTROL, EKey::Q}});
-
-    normalOperations[static_cast<size_t>(ENormalOperation::COMMAND_MODE)] = &MainWindow::activateCommandMode;
-    normalOperations[static_cast<size_t>(ENormalOperation::OPEN_PARENT_DIRECTORY)] = &MainWindow::openParentDirectory;
-    normalOperations[static_cast<size_t>(ENormalOperation::OPEN_CURRENT_DIRECTORY)] = &MainWindow::openCurrentDirectory;
-    normalOperations[static_cast<size_t>(ENormalOperation::SELECT_NEXT)] = &MainWindow::selectNext;
-    normalOperations[static_cast<size_t>(ENormalOperation::SELECT_PREVIOUS)] = &MainWindow::selectPrevious;
-    normalOperations[static_cast<size_t>(ENormalOperation::SELECT_FIRST)] = &MainWindow::selectFirst;
-    normalOperations[static_cast<size_t>(ENormalOperation::SELECT_LAST)] = &MainWindow::selectLast;
-    normalOperations[static_cast<size_t>(ENormalOperation::DELETE_FILE)] = &MainWindow::deleteFile;
-    normalOperations[static_cast<size_t>(ENormalOperation::RENAME_FILE)] = &MainWindow::renameFile;
-    normalOperations[static_cast<size_t>(ENormalOperation::YANK_FILE)] = &MainWindow::copyFilePath;
-    normalOperations[static_cast<size_t>(ENormalOperation::PASTE_FILE)] = &MainWindow::pasteFile;
-    normalOperations[static_cast<size_t>(ENormalOperation::SEARCH_NEXT)] = &MainWindow::searchNext;
-    normalOperations[static_cast<size_t>(ENormalOperation::EXIT)] = &MainWindow::exit;
 
     commandCompletion.bindWidget(*commandLine);
 }
@@ -149,30 +134,14 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
         return true;
     }
 
-    if (const Qt::KeyboardModifiers modifiers = keyEvent->modifiers();
-            modifiers != Qt::NoModifier) {
-        if (modifiers == (modifiers & Qt::ControlModifier)) {
-            if (!normalMode.isLastEqual(EKey::CONTROL))
-                normalMode.addKey(EKey::CONTROL);
-        } else if (modifiers == (modifiers & Qt::AltModifier)) {
-            if (!normalMode.isLastEqual(EKey::META))
-                normalMode.addKey(EKey::META);
-        }
-
-        if (keyEvent->modifiers() == (keyEvent->modifiers() & Qt::ShiftModifier)) {
-            if (!normalMode.isLastEqual(EKey::SHIFT))
-                normalMode.addKey(EKey::SHIFT);
-        }
-    }
-
     switch (key) {
     case Qt::Key_Escape:
         switchToNormalMode();
         return true;
 
     case Qt::Key_Colon:
-        normalMode.addKey(EKey::COLON);
-        break;
+        activateCommandMode();
+        return true;
 
     case Qt::Key_Slash:
         activateCommandLine();
@@ -181,6 +150,21 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
 
     default:
         if (key >= Qt::Key_A && key <= Qt::Key_Z) {
+            if (const Qt::KeyboardModifiers modifiers = keyEvent->modifiers();
+                    modifiers != Qt::NoModifier) {
+                if (modifiers == (modifiers & Qt::ControlModifier)) {
+                    if (!normalMode.isLastEqual(EKey::CONTROL))
+                        normalMode.addKey(EKey::CONTROL);
+                } else if (modifiers == (modifiers & Qt::AltModifier)) {
+                    if (!normalMode.isLastEqual(EKey::META))
+                        normalMode.addKey(EKey::META);
+                }
+
+                if (keyEvent->modifiers() == (keyEvent->modifiers() & Qt::ShiftModifier)) {
+                    if (!normalMode.isLastEqual(EKey::SHIFT))
+                        normalMode.addKey(EKey::SHIFT);
+                }
+            }
             const int offset = key - Qt::Key_A;
             const auto trKey = static_cast<EKey>(static_cast<int>(EKey::A) + offset);
             normalMode.addKey(trKey);
@@ -206,8 +190,8 @@ void MainWindow::handleNormalOperation()
         default:
             Q_ASSERT(operation != ENormalOperation::COUNT);
             const size_t i = static_cast<size_t>(operation);
-            auto ptr = normalOperations[i];
-            (this->*ptr)();
+            auto ptr = commandMaster.normalOperations[i];
+            ((&commandMaster)->*ptr)();
             break;
         }
     }
@@ -285,24 +269,27 @@ void MainWindow::deleteFile()
 
 void MainWindow::onCommandLineEnter()
 {
-    switch (mode) {
-    case Mode::COMMAND:
-        handleCommand();
-        break;
-    case Mode::SEARCH:
-        lastSearch = getCommandLineString();
-        fileViewer->keyboardSearch(lastSearch);
-        break;
-    case Mode::RENAME:
-        handleRename();
-        break;
-    case Mode::RENAME_FOR_COPY:
-        handleRenameForCopy();
-        break;
-    case Mode::NORMAL:
-        Q_ASSERT(false);
-        break;
+    if (commandLineStrategy) {
+        commandLineStrategy->handleEnter(getCommandLineString());
+        commandLineStrategy = nullptr;
+        mode = Mode::RENAME; // HACK
+    } else {
+        switch (mode) {
+        case Mode::COMMAND:
+            handleCommand();
+            break;
+        case Mode::SEARCH:
+            commandMaster.getSearchController().enterSearchLine(getCommandLineString());
+            break;
+        case Mode::RENAME:
+            handleRename();
+            break;
+        case Mode::NORMAL:
+            Q_ASSERT(false);
+            break;
+        }
     }
+
     switchToNormalMode();
 }
 
@@ -415,19 +402,6 @@ void MainWindow::handleRename()
     QFile::rename(info.filePath(), info.path() / newName);
 }
 
-void MainWindow::handleRenameForCopy()
-{
-    const QString& destPath = getCurrentDirectory() / getCommandLineString();
-    if (QFile::copy(pathCopy, destPath))
-        return;
-    if (!QFileInfo::exists(pathCopy))
-        showStatus("The file being copied no longer exists", 4);
-    else if (QFileInfo::exists(destPath))
-        showStatus("The file being copied with that name already exists", 4);
-    else
-        showStatus("Unexpected copy error", 4);
-}
-
 QString MainWindow::getCommandLineString() const
 {
     return commandLine->text();
@@ -447,6 +421,19 @@ void MainWindow::setRootIndex(const QModelIndex& newRootIndex)
     fileViewer->selectRow(0);
 }
 
+void MainWindow::searchForward(const QString& line)
+{
+    fileViewer->keyboardSearch(line);
+}
+
+void MainWindow::activateCommandLine(ICommandLineStrategy* newCommandLineStrategy)
+{
+    commandLineStrategy = newCommandLineStrategy;
+    if (commandLineStrategy)
+        commandLine->setText(commandLineStrategy->getInitialValue());
+    commandLine->setFocus();
+}
+
 void MainWindow::activateCommandMode()
 {
     mode = Mode::COMMAND;
@@ -458,41 +445,6 @@ void MainWindow::renameFile()
 {
     mode = Mode::RENAME;
     activateCommandLine(model->fileName(getCurrentIndex()));
-}
-
-void MainWindow::copyFilePath()
-{
-    pathCopy = model->filePath(getCurrentIndex());
-}
-
-void MainWindow::pasteFile()
-{
-    if (pathCopy.isEmpty())
-        return;
-    const QFileInfo fileInfo(pathCopy);
-    const QString& newFileName = fileInfo.fileName();
-    const QString& newFilePath = getCurrentDirectory() / newFileName;
-    if (QFile::copy(pathCopy, newFilePath))
-        return;
-    if (!fileInfo.exists()) {
-        showStatus("The file being copied no longer exists", 4);
-    } else if (QFileInfo::exists(newFilePath)) {
-        mode = Mode::RENAME_FOR_COPY;
-        activateCommandLine(newFileName);
-        showStatus("Set a new name for the destination file");
-    } else {
-        showStatus("Enexpected copy error", 4);
-    }
-}
-
-void MainWindow::searchNext()
-{
-    fileViewer->keyboardSearch(lastSearch);
-}
-
-void MainWindow::exit()
-{
-    qApp->exit();
 }
 
 
@@ -614,3 +566,4 @@ QString toString(const std::vector<EKey>& keys)
     }
     return result;
 }
+

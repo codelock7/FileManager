@@ -32,6 +32,7 @@ set(PROJECT_SOURCES
         util.h util.cpp
         platform.h platform.cpp
         commandmaster.h commandmaster.cpp
+        searchcontroller.h searchcontroller.cpp
         commandcompletion.h commandcompletion.cpp
         mainwindow.cpp mainwindow.h mainwindow.ui
 )

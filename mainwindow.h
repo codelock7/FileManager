@@ -7,6 +7,7 @@
 #include <map>
 #include "commandmaster.h"
 #include "commandcompletion.h"
+#include "searchcontroller.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -25,7 +26,6 @@ enum class Mode {
     COMMAND,
     SEARCH,
     RENAME,
-    RENAME_FOR_COPY,
 };
 
 enum class EKey {
@@ -42,27 +42,6 @@ enum class EKey {
 
 
 using KeySequence = std::vector<EKey>;
-
-
-enum class ENormalOperation {
-    NONE,
-    RESET,
-    COMMAND_MODE,
-    OPEN_PARENT_DIRECTORY,
-    OPEN_CURRENT_DIRECTORY,
-    SELECT_NEXT,
-    SELECT_PREVIOUS,
-    SELECT_FIRST,
-    SELECT_LAST,
-    DELETE_FILE,
-    RENAME_FILE,
-    YANK_FILE,
-    PASTE_FILE,
-    SEARCH_NEXT,
-    EXIT,
-
-    COUNT,
-};
 
 
 class NormalOperation {
@@ -138,12 +117,12 @@ protected:
     void handleNormalOperation();
 
 private slots:
-    void openCurrentDirectory();
-    void openParentDirectory();
-    void selectNext();
-    void selectPrevious();
-    void selectLast();
-    void selectFirst();
+    void openCurrentDirectory() override;
+    void openParentDirectory() override;
+    void selectNext() override;
+    void selectPrevious() override;
+    void selectLast() override;
+    void selectFirst() override;
     void deleteFile();
     void onCommandLineEnter();
     void onRowsInserted(const QModelIndex& parent, int first, int last);
@@ -160,17 +139,15 @@ private:
     bool changeDirectoryIfCan(const QString& dirPath) override;
     void handleCommand();
     void handleRename();
-    void handleRenameForCopy();
     QString getCommandLineString() const;
     void activateCommandLine(const QString& initialValue = {});
     void setRootIndex(const QModelIndex&);
+    void searchForward(const QString&) override;
+
+    void activateCommandLine(ICommandLineStrategy*) override;
 
     void activateCommandMode();
     void renameFile();
-    void copyFilePath();
-    void pasteFile();
-    void searchNext();
-    void exit();
 
 private:
     Ui::MainWindow *ui;
@@ -181,8 +158,7 @@ private:
     NormalMode normalMode;
     Mode mode = Mode::NORMAL;
     QString pathCopy;
-    QString lastSearch;
-    NormalOperations normalOperations;
     CommandMaster commandMaster;
     CommandCompletion commandCompletion;
+    ICommandLineStrategy* commandLineStrategy = nullptr;
 };

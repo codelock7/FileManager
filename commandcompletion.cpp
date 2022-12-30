@@ -90,8 +90,10 @@ bool CommandCompletion::eventFilter(QObject* object, QEvent* event)
 
 void CommandCompletion::onTextEdit()
 {
-    if (isActivated())
+    if (isActivated()) {
         deactivate();
+        activate();
+    }
 }
 
 bool CommandCompletion::isOneWordLine(const QString& line) const

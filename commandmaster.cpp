@@ -8,11 +8,85 @@
 #include "searchcontroller.h"
 
 
-CommandMaster::CommandMaster(ICommandMasterOwner& newOwner)
-    : owner(&newOwner)
-    , searchController(newOwner)
+void toStringg(EKey key, QString& result)
+{
+    switch (key) {
+    case EKey::CONTROL:
+        result += 'C';
+        break;
+    case EKey::SHIFT:
+        result += 'S';
+        break;
+    case EKey::META:
+        result += 'M';
+        break;
+    default:
+        if (key >= EKey::A && key <= EKey::Z) {
+            const int offset = static_cast<int>(key) - static_cast<int>(EKey::A);
+            result += 'a' + offset;
+        }
+        break;
+    }
+}
+
+
+QString toString(const std::vector<EKey>& keys)
+{
+    QString result;
+    const int reserveSize = static_cast<int>(keys.size());
+    Q_ASSERT(reserveSize == keys.size());
+    result.reserve(reserveSize);
+
+    for (EKey key : keys) {
+        switch (key) {
+        case EKey::CONTROL:
+            result += 'C';
+            break;
+        case EKey::SHIFT:
+            result += 'S';
+            break;
+        case EKey::META:
+            result += 'M';
+            break;
+        default:
+            if (key >= EKey::A && key <= EKey::Z) {
+                const int offset = static_cast<int>(key) - static_cast<int>(EKey::A);
+                result += 'a' + offset;
+            }
+            break;
+        }
+    }
+    return result;
+}
+
+
+bool isChar(EKey key)
+{
+    return static_cast<int>(key) >= static_cast<int>(EKey::A) &&
+           static_cast<int>(key) <= static_cast<int>(EKey::Z);
+}
+
+
+CommandMaster::CommandMaster(ICommandMasterOwner& newUi)
+    : ui(&newUi)
+    , searchController(newUi)
 {
     using CommandOwner = CommandMaster;
+
+//    Key k = Key::make<EKey::CONTROL, EKey::J>();
+
+    normalMode.addCommand({ENormalOperation::OPEN_PARENT_DIRECTORY, {Key{EKey::H}}});
+    normalMode.addCommand({ENormalOperation::OPEN_CURRENT_DIRECTORY, {Key{EKey::L}}});
+    normalMode.addCommand({ENormalOperation::SELECT_NEXT, {Key{EKey::J}}});
+    normalMode.addCommand({ENormalOperation::SELECT_PREVIOUS, {Key{EKey::K}}});
+    normalMode.addCommand({ENormalOperation::SELECT_FIRST, {Key{EKey::G, EKey::G}}});
+    normalMode.addCommand({ENormalOperation::SELECT_LAST, {Key{EKey::SHIFT, EKey::G}}});
+    normalMode.addCommand({ENormalOperation::DELETE_FILE, {Key{EKey::SHIFT, EKey::D}}});
+    normalMode.addCommand({ENormalOperation::RENAME_FILE, {Key{EKey::C, EKey::W}}});
+    normalMode.addCommand({ENormalOperation::YANK_FILE, {Key{EKey::Y, EKey::Y}}});
+    normalMode.addCommand({ENormalOperation::PASTE_FILE, {Key{EKey::P}}});
+    normalMode.addCommand({ENormalOperation::SEARCH_NEXT, {Key{EKey::N}}});
+    normalMode.addCommand({ENormalOperation::EXIT, {Key{EKey::CONTROL, EKey::Q}}});
 
     normalOperations[static_cast<size_t>(ENormalOperation::OPEN_PARENT_DIRECTORY)] = &CommandOwner::openParentDirectory;
     normalOperations[static_cast<size_t>(ENormalOperation::OPEN_CURRENT_DIRECTORY)] = &CommandOwner::openCurrentDirectory;
@@ -20,13 +94,12 @@ CommandMaster::CommandMaster(ICommandMasterOwner& newOwner)
     normalOperations[static_cast<size_t>(ENormalOperation::SELECT_PREVIOUS)] = &CommandOwner::selectPrevious;
     normalOperations[static_cast<size_t>(ENormalOperation::SELECT_FIRST)] = &CommandOwner::selectFirst;
     normalOperations[static_cast<size_t>(ENormalOperation::SELECT_LAST)] = &CommandOwner::selectLast;
-//    normalOperations[static_cast<size_t>(ENormalOperation::DELETE_FILE)] = &CommandOwner::deleteFile;
-//    normalOperations[static_cast<size_t>(ENormalOperation::RENAME_FILE)] = &CommandOwner::renameFile;
+    normalOperations[static_cast<size_t>(ENormalOperation::DELETE_FILE)] = &CommandOwner::removeCurrent;
+    normalOperations[static_cast<size_t>(ENormalOperation::RENAME_FILE)] = &CommandOwner::renameCurrent;
     normalOperations[static_cast<size_t>(ENormalOperation::YANK_FILE)] = &CommandOwner::yankFile;
     normalOperations[static_cast<size_t>(ENormalOperation::PASTE_FILE)] = &CommandOwner::pasteFile;
     normalOperations[static_cast<size_t>(ENormalOperation::SEARCH_NEXT)] = &CommandOwner::searchNext;
     normalOperations[static_cast<size_t>(ENormalOperation::EXIT)] = &CommandOwner::exit;
-
 
     commands = Commands({
         std::make_pair(QString("cd"), &CommandOwner::changeDirectory),
@@ -36,7 +109,7 @@ CommandMaster::CommandMaster(ICommandMasterOwner& newOwner)
         std::make_pair(QString("colorscheme"), &CommandOwner::setColorScheme)
     });
 
-    pasteFileCommand.owner = owner;
+    pasteFileCommand.owner = this;
 }
 
 CommandMaster::Commands::const_iterator CommandMaster::cbegin() const
@@ -47,6 +120,127 @@ CommandMaster::Commands::const_iterator CommandMaster::cbegin() const
 CommandMaster::Commands::const_iterator CommandMaster::cend() const
 {
     return commands.cend();
+}
+
+ICommandMasterOwner &CommandMaster::getUi()
+{
+    return *ui;
+}
+
+//QString toStringgg(const KeySeq& keys)
+//{
+//    QString result;
+//    const int reserveSize = static_cast<int>(keys.length);
+//    Q_ASSERT(reserveSize == keys.length);
+//    result.reserve(reserveSize);
+
+//    for (EKey key : keys.value) {
+//        switch (key) {
+//        case EKey::CONTROL:
+//            result += 'C';
+//            break;
+//        case EKey::SHIFT:
+//            result += 'S';
+//            break;
+//        case EKey::META:
+//            result += 'M';
+//            break;
+//        default:
+//            if (key >= EKey::A && key <= EKey::Z) {
+//                const int offset = static_cast<int>(key) - static_cast<int>(EKey::A);
+//                result += 'a' + offset;
+//            }
+//            break;
+//        }
+//    }
+//    return result;
+//}
+
+void CommandMaster::handleKeyPress(Key key)
+{
+    switch (key.value) {
+    case EKey::ESCAPE:
+        switchToNormalMode();
+        break;
+
+    case EKey::COLON:
+        switchToCommandMode();
+        break;
+
+    case EKey::SLASH:
+        switchToSearchMode();
+        break;
+
+    default:
+        if (isChar(key.value)) {
+            normalMode.addKey(key);
+            const NormalMode::Status status = normalMode.handle();
+            if (std::get<bool>(status)) {
+                qDebug("lol");
+                const auto& operation = std::get<ENormalOperation>(status);
+                switch (operation) {
+                case ENormalOperation::NONE:
+                    return;
+                default:
+                    Q_ASSERT(operation != ENormalOperation::COUNT);
+                    const size_t i = static_cast<size_t>(operation);
+                    auto ptr = normalOperations[i];
+                    ((this)->*ptr)();
+                    break;
+                }
+            }
+            normalMode.reset();
+            break;
+        }
+        break;
+    }
+}
+
+void CommandMaster::handleCommandEnter(QString line)
+{
+    Q_ASSERT(clStrategy);
+    clStrategy(std::move(line));
+    switchToNormalMode();
+}
+
+void CommandMaster::switchToNormalMode()
+{
+    qDebug("Normal mode");
+    ui->activateFileViewer();
+}
+
+void CommandMaster::switchToCommandMode()
+{
+    qDebug("Command mode");
+    clStrategy = [&](QString line) {
+        if (line.isEmpty())
+            return;
+        const QStringList& args = line.split(' ', QString::SkipEmptyParts);
+        if (args.isEmpty())
+            return;
+        if (!runIfHas(args))
+            ui->showStatus("Unknown command", 4);
+    };
+    ui->focusToCommandLine();
+}
+
+void CommandMaster::switchToSearchMode()
+{
+    qDebug("Search mode");
+    clStrategy = [&](QString line) {
+        if (line.isEmpty())
+            return;
+        searchController.enterSearchLine(std::move(line));
+    };
+    ui->focusToCommandLine();
+}
+
+void CommandMaster::switchToFileRenameMode(QString oldName)
+{
+    clStrategy = [&](QString newName) {
+        pasteFileCommand.pasteWithNewName(newName);
+    };
+    ui->focusToCommandLine(oldName);
 }
 
 void CommandMaster::exit()
@@ -65,37 +259,48 @@ bool CommandMaster::runIfHas(const QStringList &args)
 
 void CommandMaster::openCurrentDirectory()
 {
-    owner->openCurrentDirectory();
+    ui->openCurrentDirectory();
 }
 
 void CommandMaster::openParentDirectory()
 {
-    owner->openParentDirectory();
+    ui->openParentDirectory();
 }
 
 void CommandMaster::selectPrevious()
 {
-    owner->selectPrevious();
+    const int currRow = ui->getCurrentRow();
+    if (currRow == -1) {
+        ui->selectRow(0);
+        return;
+    }
+    ui->selectRow(currRow - 1);
 }
 
 void CommandMaster::selectNext()
 {
-    owner->selectNext();
+    const int currRow = ui->getCurrentRow();
+    if (currRow == -1) {
+        ui->selectRow(0);
+        return;
+    }
+    ui->selectRow(currRow + 1);
 }
 
 void CommandMaster::selectFirst()
 {
-    owner->selectFirst();
+    ui->selectRow(0);
 }
 
 void CommandMaster::selectLast()
 {
-    owner->selectLast();
+    const int rowCount = ui->getRowCount();
+    ui->selectRow(rowCount - 1);
 }
 
 void CommandMaster::yankFile()
 {
-    pasteFileCommand.pathCopy = owner->getCurrentFile();
+    pasteFileCommand.pathCopy = ui->getCurrentFile();
 }
 
 void CommandMaster::pasteFile()
@@ -108,9 +313,28 @@ void CommandMaster::searchNext()
     searchController.searchNext();
 }
 
+void CommandMaster::renameCurrent()
+{
+    const QFileInfo fi(ui->getCurrentFile());
+    ui->focusToCommandLine(fi.fileName());
+    clStrategy = [=](QString newName) {
+        if (!newName.isEmpty())
+            QFile::rename(fi.filePath(), fi.path() / newName);
+    };
+}
+
+void CommandMaster::removeCurrent()
+{
+    const QFileInfo fi(ui->getCurrentFile());
+    if (fi.isDir())
+        QDir(fi.filePath()).removeRecursively();
+    else
+        QFile::remove(fi.filePath());
+}
+
 void CommandMaster::createEmptyFile(const QStringList& args)
 {
-    const QString& currDir = owner->getCurrentDirectory();
+    const QString& currDir = ui->getCurrentDirectory();
     for (int i = 1; i < args.length(); ++i) {
         QFile newFile(currDir / args[i]);
         newFile.open(QIODevice::WriteOnly);
@@ -120,41 +344,41 @@ void CommandMaster::createEmptyFile(const QStringList& args)
 void CommandMaster::changeDirectory(const QStringList& args)
 {
     if (args.size() != 2) {
-        owner->showStatus("Invalid command signature", 4);
+        ui->showStatus("Invalid command signature", 4);
         return;
     }
     QString newDirPath = args[1];
     QFileInfo newDirInfo(newDirPath);
     if (newDirInfo.isRelative()) {
-        newDirInfo.setFile(owner->getCurrentDirectory() / newDirPath);
+        newDirInfo.setFile(ui->getCurrentDirectory() / newDirPath);
         newDirPath = newDirInfo.absoluteFilePath();
     }
     if (!newDirInfo.exists()) {
-        owner->showStatus("Target directory does not exist", 4);
+        ui->showStatus("Target directory does not exist", 4);
         return;
     }
-    if (!owner->changeDirectoryIfCan(newDirPath))
-        owner->showStatus("Unexpected error", 4);
+    if (!ui->changeDirectoryIfCan(newDirPath))
+        ui->showStatus("Unexpected error", 4);
 }
 
 void CommandMaster::openFile(const QStringList&)
 {
-    Platform::open(owner->getCurrentFile().toStdWString().c_str());
+    Platform::open(ui->getCurrentFile().toStdWString().c_str());
 }
 
 void CommandMaster::makeDirectory(const QStringList& args)
 {
     for (int i = 1; i < args.length(); ++i)
-        owner->mkdir(args[i]);
+        ui->mkdir(args[i]);
 }
 
 void CommandMaster::setColorScheme(const QStringList& args)
 {
     if (args.size() != 2) {
-        owner->showStatus("Invalid command signature", 4);
+        ui->showStatus("Invalid command signature", 4);
         return;
     }
-    owner->setColorSchemeName(args.back());
+    ui->setColorSchemeName(args.back());
 }
 
 void PasteFileCommand::paste()
@@ -163,40 +387,194 @@ void PasteFileCommand::paste()
         return;
     const QFileInfo fileInfo(pathCopy);
     const QString& newFileName = fileInfo.fileName();
-    const QString& newFilePath = owner->getCurrentDirectory() / newFileName;
+    const QString& newFilePath = owner->getUi().getCurrentDirectory() / newFileName;
     if (QFile::copy(pathCopy, newFilePath))
         return;
     if (!fileInfo.exists()) {
-        owner->showStatus("The file being copied no longer exists", 4);
+        owner->getUi().showStatus("The file being copied no longer exists", 4);
     } else if (QFileInfo::exists(newFilePath)) {
-        clFileRenameStrategy.owner = this;
-        clFileRenameStrategy.initialValue = newFileName;
-        owner->activateCommandLine(&clFileRenameStrategy);
-        owner->showStatus("Set a new name for the destination file");
+        owner->switchToFileRenameMode(newFileName);
+        owner->getUi().showStatus("Set a new name for the destination file");
     } else {
-        owner->showStatus("Enexpected copy error", 4);
+        owner->getUi().showStatus("Enexpected copy error", 4);
     }
 }
 
 void PasteFileCommand::pasteWithNewName(QString newName)
 {
-    const QString& destPath = owner->getCurrentDirectory() / newName;
+    const QString& destPath = owner->getUi().getCurrentDirectory() / newName;
     if (QFile::copy(pathCopy, destPath))
         return;
     if (!QFileInfo::exists(pathCopy))
-        owner->showStatus("The file being copied no longer exists", 4);
+        owner->getUi().showStatus("The file being copied no longer exists", 4);
     else if (QFileInfo::exists(destPath))
-        owner->showStatus("The file being copied with that name already exists", 4);
+        owner->getUi().showStatus("The file being copied with that name already exists", 4);
     else
-        owner->showStatus("Unexpected copy error", 4);
+        owner->getUi().showStatus("Unexpected copy error", 4);
 }
 
-QString CLFileRenameStrategy::getInitialValue() const
+
+KeySeq::KeySeq()
+    : length(0)
+{}
+
+KeySeq::KeySeq(Keys newValue, size_t newLength)
+    : keys(std::move(newValue))
+    , length(newLength)
+{}
+
+KeySeq::KeySeq(std::initializer_list<Key> newKeys)
+    : length(static_cast<uint8_t>(newKeys.size()))
 {
-    return initialValue;
+    Q_ASSERT(length == newKeys.size());
+    Q_ASSERT(newKeys.size() <= keys.size());
+    std::copy(newKeys.begin(), newKeys.end(), keys.begin());
 }
 
-void CLFileRenameStrategy::handleEnter(QString newName)
+KeySeq::Keys::const_iterator KeySeq::cbegin() const
 {
-    owner->pasteWithNewName(newName);
+    return keys.cbegin();
+}
+
+KeySeq::Keys::const_iterator KeySeq::cend() const
+{
+    return keys.cbegin() + length;
+}
+
+CompareResult KeySeq::compare(const KeySeq& rhs) const
+{
+    const size_t len = std::min(length, rhs.length);
+    for (size_t i = 0; i < len; ++i)
+        if (keys[i] != rhs.keys[i])
+            return CompareResult::FALSE;
+    if (length != rhs.length)
+        return CompareResult::PARTIALLY_TRUE;
+    return CompareResult::TRUE;
+}
+
+void KeySeq::operator+=(Key rhs)
+{
+    keys[length++] = rhs;
+}
+
+void KeySeq::clear()
+{
+    length = 0;
+}
+
+bool KeySeq::isEmpty() const
+{
+    return length == 0;
+}
+
+size_t KeySeq::getLength() const
+{
+    return length;
+}
+
+void NormalMode::addCommand(NormalOperation operation)
+{
+    operations.push_back(std::move(operation));
+}
+
+bool NormalMode::isEmptySequence() const
+{
+    return keySequence.isEmpty();
+}
+
+void NormalMode::addKey(Key key)
+{
+    keySequence += key;
+}
+
+NormalMode::Status NormalMode::handle()
+{
+    auto result = std::make_pair(false, ENormalOperation::NONE);
+    for (const NormalOperation& operation : operations) {
+        switch (operation.compare(keySequence)) {
+        case CompareResult::FALSE:
+            break;
+        case CompareResult::PARTIALLY_TRUE:
+            std::get<bool>(result) = true;
+            break;
+        case CompareResult::TRUE:
+            std::get<bool>(result) = true;
+            std::get<ENormalOperation>(result) = operation.getType();
+            break;
+        }
+    }
+    return result;
+}
+
+void NormalMode::reset()
+{
+    keySequence.clear();
+}
+
+NormalOperation::NormalOperation(ENormalOperation operation, KeySequence keySequence)
+    : operation(operation)
+    , keySequence(std::move(keySequence))
+{
+}
+
+CompareResult NormalOperation::compare(const KeySequence& rhs) const
+{
+    return keySequence.compare(rhs);
+}
+
+ENormalOperation NormalOperation::getType() const
+{
+    return operation;
+}
+
+Key::Key()
+    : value(EKey::NONE)
+    , shift(false)
+    , control(false)
+    , meta(false)
+{
+}
+
+Key::Key(std::initializer_list<EKey> keys)
+    : Key()
+{
+    for (const EKey& key : keys)
+        this->operator+=(key);
+    Q_ASSERT(value != EKey::NONE);
+}
+
+bool Key::operator==(Key rhs) const
+{
+    return value == rhs.value &&
+           shift == rhs.shift &&
+           control == rhs.control &&
+           meta == rhs.meta;
+}
+
+bool Key::operator!=(const Key& rhs) const
+{
+    return !this->operator==(rhs);
+}
+
+void Key::operator+=(EKey key)
+{
+    switch (key) {
+    case EKey::SHIFT:
+        Q_ASSERT(!shift);
+        shift = true;
+        break;
+
+    case EKey::CONTROL:
+        Q_ASSERT(!control);
+        control = true;
+        break;
+
+    case EKey::META:
+        Q_ASSERT(!meta);
+        meta = true;
+        break;
+
+    default:
+        value = key;
+    }
 }

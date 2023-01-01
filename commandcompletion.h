@@ -4,6 +4,13 @@
 #include "commandmaster.h"
 #include <optional>
 
+
+class ICommandLine {
+public:
+    virtual QString getValue() const = 0;
+    virtual void setValue(QString) = 0;
+};
+
 class CommandCompletion : public QObject
 {
     Q_OBJECT

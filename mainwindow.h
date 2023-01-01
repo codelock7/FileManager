@@ -21,68 +21,6 @@ class QLabel;
 class QLineEdit;
 
 
-enum class Mode {
-    NORMAL,
-    COMMAND,
-    SEARCH,
-    RENAME,
-};
-
-enum class EKey {
-    NONE,
-    ESCAPE,
-    META,
-    SHIFT,
-    CONTROL,
-    COLON,
-    A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
-
-    COUNT,
-};
-
-
-using KeySequence = std::vector<EKey>;
-
-
-class NormalOperation {
-public:
-    enum CompareResult {
-        MAYBE,
-        FALSE,
-        TRUE,
-    };
-
-    NormalOperation(ENormalOperation, KeySequence);
-    CompareResult compareKeySequence(const KeySequence&) const;
-    ENormalOperation getType() const;
-
-private:
-    ENormalOperation operation;
-    KeySequence keys;
-};
-
-
-QString toString(const std::vector<EKey>&);
-
-
-class NormalMode {
-public:
-    using Status = std::pair<bool, ENormalOperation>;
-
-    bool isLastEqual(EKey) const;
-    bool isEmptySequence() const;
-    void addCommand(NormalOperation);
-    void addKey(EKey);
-    Status handle();
-    void reset();
-    QString seq() const {return toString(keySequence);}
-
-private:
-    std::vector<NormalOperation> operations;
-    KeySequence keySequence;
-};
-
-
 class KeyPressEater : public QObject {
 public:
     using Handler = std::function<bool(QObject*, QKeyEvent*)>;
@@ -109,21 +47,18 @@ public:
 
 protected:
     QString getCurrentFile() const override;
+    QString getCurrentDir() const override;
     QFileInfo getCurrentFileInfo() const;
     QString getCurrentDirectory() const override;
-    int getCurrentRow() const;
     void keyPressEvent(QKeyEvent*) override;
     bool handleKeyPress(QObject*, QKeyEvent*);
-    void handleNormalOperation();
 
 private slots:
     void openCurrentDirectory() override;
     void openParentDirectory() override;
-    void selectNext() override;
-    void selectPrevious() override;
-    void selectLast() override;
-    void selectFirst() override;
-    void deleteFile();
+    void selectRow(int) override;
+    int getRowCount() const override;
+    int getCurrentRow() const override;
     void onCommandLineEnter();
     void onRowsInserted(const QModelIndex& parent, int first, int last);
     void onMessageChange(const QString&);
@@ -137,17 +72,14 @@ private:
     void mkdir(const QString& dirName) override;
     void setColorSchemeName(const QString&) override;
     bool changeDirectoryIfCan(const QString& dirPath) override;
-    void handleCommand();
-    void handleRename();
     QString getCommandLineString() const;
-    void activateCommandLine(const QString& initialValue = {});
     void setRootIndex(const QModelIndex&);
     void searchForward(const QString&) override;
 
-    void activateCommandLine(ICommandLineStrategy*) override;
+    void focusToCommandLine(const QString& line = {}) override;
+    void activateFileViewer() override;
 
     void activateCommandMode();
-    void renameFile();
 
 private:
     Ui::MainWindow *ui;
@@ -155,10 +87,7 @@ private:
     QLabel* pathViewer;
     QLineEdit* commandLine;
     QFileSystemModel* model;
-    NormalMode normalMode;
-    Mode mode = Mode::NORMAL;
-    QString pathCopy;
+
     CommandMaster commandMaster;
     CommandCompletion commandCompletion;
-    ICommandLineStrategy* commandLineStrategy = nullptr;
 };

@@ -1,47 +1,24 @@
 #pragma once
-#include <QObject>
-#include <QLineEdit>
 #include "commandmaster.h"
-#include <optional>
 
 
-class ICommandLine {
+class CommandCompletion {
 public:
-    virtual QString getValue() const = 0;
-    virtual void setValue(QString) = 0;
-};
+    using CommandContainer = CommandMaster;
+    using CommandIterator = CommandContainer::Commands::const_iterator;
 
-class CommandCompletion : public QObject
-{
-    Q_OBJECT
-
-public:
-    using Commands = CommandMaster::Commands;
-    using CommandIterator = Commands::const_iterator;
-
-    explicit CommandCompletion(const CommandMaster&, QObject* parent = nullptr);
-    bool isBinded() const;
-    void bindWidget(QLineEdit&);
-    void unbindWidget();
+    explicit CommandCompletion(const CommandMaster&);
     bool isActivated() const;
-    void activate();
+    void activate(QString);
     void deactivate();
-
-protected:
-    bool eventFilter(QObject*, QEvent*) override;
-    void updateSuggestion();
-
-private slots:
-    void onTextEdit();
+    QString getNextSuggestion();
 
 private:
-    bool isOneWordLine(const QString& line) const;
-    bool resetIfEndReached();
+    bool isOneWordLine(const QString&) const;
 
 private:
-    const CommandMaster* commandMaster;
-    QLineEdit* lineEdit;
+    const CommandContainer* commandContainer;
     QString initialString;
-    CommandIterator currentCommand;
+    CommandIterator commandIter;
     bool activated;
 };

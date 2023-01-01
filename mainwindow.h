@@ -52,6 +52,7 @@ protected:
     QString getCurrentDirectory() const override;
     void keyPressEvent(QKeyEvent*) override;
     bool handleKeyPress(QObject*, QKeyEvent*);
+    bool eventFilter(QObject*, QEvent*) override;
 
 private slots:
     void openCurrentDirectory() override;
@@ -60,6 +61,7 @@ private slots:
     int getRowCount() const override;
     int getCurrentRow() const override;
     void onCommandLineEnter();
+    void onCommandEdit();
     void onRowsInserted(const QModelIndex& parent, int first, int last);
     void onMessageChange(const QString&);
 
@@ -67,7 +69,6 @@ private:
     void completeCommand();
     bool resetCompletionIfEndReached();
     QModelIndex getCurrentIndex() const;
-    void switchToNormalMode();
     void showStatus(const QString&, int secTimeout = 0) override;
     void mkdir(const QString& dirName) override;
     void setColorSchemeName(const QString&) override;
@@ -78,8 +79,6 @@ private:
 
     void focusToCommandLine(const QString& line = {}) override;
     void activateFileViewer() override;
-
-    void activateCommandMode();
 
 private:
     Ui::MainWindow *ui;

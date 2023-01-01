@@ -53,6 +53,7 @@ MainWindow::MainWindow(QWidget *parent)
     Q_ASSERT(commandLine != nullptr);
     commandLine->installEventFilter(this);
     QObject::connect(commandLine, &QLineEdit::returnPressed, this, &MainWindow::onCommandLineEnter);
+    QObject::connect(commandLine, &QLineEdit::textEdited, this, &MainWindow::onCommandEdit);
 
     static auto const eater = new KeyPressEater(
         std::bind(&MainWindow::handleKeyPress, this, std::placeholders::_1, std::placeholders::_2)
@@ -63,8 +64,6 @@ MainWindow::MainWindow(QWidget *parent)
     fileViewer->setModel(model);
     fileViewer->installEventFilter(eater);
     fileViewer->setColumnWidth(0, 400);
-
-    commandCompletion.bindWidget(*commandLine);
 }
 
 MainWindow::~MainWindow()
@@ -162,6 +161,27 @@ bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
     return true;
 }
 
+bool MainWindow::eventFilter(QObject* object, QEvent* event)
+{
+    if (object == commandLine) {
+        switch (event->type()) {
+        case QEvent::KeyPress:
+            if (static_cast<QKeyEvent*>(event)->key() == Qt::Key_Tab) {
+                if (!commandCompletion.isActivated())
+                    commandCompletion.activate(commandLine->text());
+                commandLine->setText(commandCompletion.getNextSuggestion());
+                return true;
+            }
+            break;
+        case QEvent::KeyRelease:
+            if (static_cast<QKeyEvent*>(event)->key() == Qt::Key_Tab)
+                return true;
+            break;
+        }
+    }
+    return QObject::eventFilter(object, event);
+}
+
 void MainWindow::openCurrentDirectory()
 {
     const QModelIndex& newIndex = getCurrentIndex();
@@ -200,6 +220,14 @@ void MainWindow::onCommandLineEnter()
     commandMaster.handleCommandEnter(getCommandLineString());
 }
 
+void MainWindow::onCommandEdit()
+{
+    if (commandCompletion.isActivated()) {
+        commandCompletion.deactivate();
+        commandCompletion.activate(commandLine->text());
+    }
+}
+
 void MainWindow::onRowsInserted(const QModelIndex& parent, int first, int last)
 {
     qDebug("View updated");
@@ -219,28 +247,6 @@ QModelIndex MainWindow::getCurrentIndex() const
     if (currIndex.column() == 0)
         return currIndex;
     return model->index(currIndex.row(), 0, currIndex.parent());
-}
-
-void MainWindow::switchToNormalMode()
-{
-//    switch (mode) {
-//    case Mode::NORMAL:
-//        normalMode.reset();
-//        break;
-//    case Mode::COMMAND:
-//        if (commandCompletion.isActivated())
-//            commandCompletion.deactivate();
-
-//        mode = Mode::NORMAL;
-//        commandLine->clear();
-//        fileViewer->setFocus();
-//        break;
-//    default:
-//        mode = Mode::NORMAL;
-//        commandLine->clear();
-//        fileViewer->setFocus();
-//        break;
-//    }
 }
 
 void MainWindow::showStatus(const QString& message, int secTimeout)
@@ -316,12 +322,6 @@ void MainWindow::activateFileViewer()
 {
     commandLine->clear();
     fileViewer->setFocus();
-}
-
-void MainWindow::activateCommandMode()
-{
-    commandCompletion.activate();
-    focusToCommandLine();
 }
 
 

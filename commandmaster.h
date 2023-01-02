@@ -163,16 +163,13 @@ enum class CompareResult
 struct KeySeq {
     using Keys = std::array<Key, 4>;
 
-    KeySeq();
-    KeySeq(Keys, size_t);
-    KeySeq(std::initializer_list<Key>);
+    constexpr KeySeq();
 
-//    template<typename... T>
-//    KeySeq(T... params)
-//        : keys{Key::make<params>...}
-//        , length(sizeof...(params))
-//    {
-//    }
+    template<typename...T>
+    constexpr KeySeq(T... params)
+        : keys{params...}
+        , length(sizeof...(params))
+    {}
 
     Keys::const_iterator cbegin() const;
     Keys::const_iterator cend() const;

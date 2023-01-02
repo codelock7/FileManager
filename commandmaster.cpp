@@ -412,24 +412,9 @@ void PasteFileCommand::pasteWithNewName(QString newName)
 }
 
 
-KeySeq::KeySeq()
+constexpr KeySeq::KeySeq()
     : length(0)
 {}
-
-KeySeq::KeySeq(Keys newValue, size_t newLength)
-    : keys(std::move(newValue))
-    , length(static_cast<uint8_t>(newLength))
-{
-    Q_ASSERT(length == newLength);
-}
-
-KeySeq::KeySeq(std::initializer_list<Key> newKeys)
-    : length(static_cast<uint8_t>(newKeys.size()))
-{
-    Q_ASSERT(length == newKeys.size());
-    Q_ASSERT(newKeys.size() <= keys.size());
-    std::copy(newKeys.begin(), newKeys.end(), keys.begin());
-}
 
 KeySeq::Keys::const_iterator KeySeq::cbegin() const
 {

@@ -73,20 +73,18 @@ CommandMaster::CommandMaster(ICommandMasterOwner& newUi)
 {
     using CommandOwner = CommandMaster;
 
-//    Key k = Key::make<EKey::CONTROL, EKey::J>();
-
-    normalMode.addCommand({ENormalOperation::OPEN_PARENT_DIRECTORY, {Key{EKey::H}}});
-    normalMode.addCommand({ENormalOperation::OPEN_CURRENT_DIRECTORY, {Key{EKey::L}}});
-    normalMode.addCommand({ENormalOperation::SELECT_NEXT, {Key{EKey::J}}});
-    normalMode.addCommand({ENormalOperation::SELECT_PREVIOUS, {Key{EKey::K}}});
-    normalMode.addCommand({ENormalOperation::SELECT_FIRST, {Key{EKey::G, EKey::G}}});
-    normalMode.addCommand({ENormalOperation::SELECT_LAST, {Key{EKey::SHIFT, EKey::G}}});
-    normalMode.addCommand({ENormalOperation::DELETE_FILE, {Key{EKey::SHIFT, EKey::D}}});
-    normalMode.addCommand({ENormalOperation::RENAME_FILE, {Key{EKey::C, EKey::W}}});
-    normalMode.addCommand({ENormalOperation::YANK_FILE, {Key{EKey::Y, EKey::Y}}});
-    normalMode.addCommand({ENormalOperation::PASTE_FILE, {Key{EKey::P}}});
-    normalMode.addCommand({ENormalOperation::SEARCH_NEXT, {Key{EKey::N}}});
-    normalMode.addCommand({ENormalOperation::EXIT, {Key{EKey::CONTROL, EKey::Q}}});
+    normalMode.addCommand({ENormalOperation::OPEN_PARENT_DIRECTORY, {StaticKey<EKey::H>::result}});
+    normalMode.addCommand({ENormalOperation::OPEN_CURRENT_DIRECTORY, {StaticKey<EKey::L>::result}});
+    normalMode.addCommand({ENormalOperation::SELECT_NEXT, {StaticKey<EKey::J>::result}});
+    normalMode.addCommand({ENormalOperation::SELECT_PREVIOUS, {StaticKey<EKey::K>::result}});
+    normalMode.addCommand({ENormalOperation::SELECT_FIRST, {StaticKey<EKey::G>::result, StaticKey<EKey::G>::result}});
+    normalMode.addCommand({ENormalOperation::SELECT_LAST, {StaticKey<EKey::SHIFT, EKey::G>::result}});
+    normalMode.addCommand({ENormalOperation::DELETE_FILE, {StaticKey<EKey::SHIFT, EKey::D>::result}});
+    normalMode.addCommand({ENormalOperation::RENAME_FILE, {StaticKey<EKey::C>::result, StaticKey<EKey::W>::result}});
+    normalMode.addCommand({ENormalOperation::YANK_FILE, {StaticKey<EKey::Y>::result, StaticKey<EKey::Y>::result}});
+    normalMode.addCommand({ENormalOperation::PASTE_FILE, {StaticKey<EKey::P>::result}});
+    normalMode.addCommand({ENormalOperation::SEARCH_NEXT, {StaticKey<EKey::N>::result}});
+    normalMode.addCommand({ENormalOperation::EXIT, {StaticKey<EKey::CONTROL, EKey::Q>::result}});
 
     normalOperations[static_cast<size_t>(ENormalOperation::OPEN_PARENT_DIRECTORY)] = &CommandOwner::openParentDirectory;
     normalOperations[static_cast<size_t>(ENormalOperation::OPEN_CURRENT_DIRECTORY)] = &CommandOwner::openCurrentDirectory;
@@ -420,8 +418,10 @@ KeySeq::KeySeq()
 
 KeySeq::KeySeq(Keys newValue, size_t newLength)
     : keys(std::move(newValue))
-    , length(newLength)
-{}
+    , length(static_cast<uint8_t>(newLength))
+{
+    Q_ASSERT(length == newLength);
+}
 
 KeySeq::KeySeq(std::initializer_list<Key> newKeys)
     : length(static_cast<uint8_t>(newKeys.size()))
@@ -527,7 +527,7 @@ ENormalOperation NormalOperation::getType() const
     return operation;
 }
 
-Key::Key()
+constexpr Key::Key()
     : value(EKey::NONE)
     , shift(false)
     , control(false)
@@ -575,6 +575,7 @@ void Key::operator+=(EKey key)
         break;
 
     default:
+        Q_ASSERT(value == EKey::NONE);
         value = key;
     }
 }

@@ -87,51 +87,68 @@ public:
 };
 
 
-
-
-//template<EKey... ekeys>
-//struct KeyFiller {
-//    template<int n>
-//    static constexpr Key get()
-//    {
-//        if constexpr (ekey == EKey::SHIFT)
-//            key.shift = true;
-//        else if constexpr (ekey == EKey::CONTROL)
-//            key.control = true;
-//        else if constexpr (ekey == EKey::META)
-//            key.meta = true;
-//        else if constexpr (isChar<ekey>())
-//            key.value = ekey;
-//        else
-//            Q_ASSERT(false);
-//    }
-
-//    static constexpr
-
-//    template<EKey ekey>
-//    static constexpr bool isChar()
-//    {
-//        return static_cast<int>(ekey) >= static_cast<int>(EKey::A) &&
-//               static_cast<int>(ekey) <= static_cast<int>(EKey::Z);
-//    }
-
-//    Key value;
-//};
-
-
 struct Key {
-    Key();
+    constexpr Key();
     Key(std::initializer_list<EKey>);
 
     bool operator==(Key) const;
     bool operator!=(const Key &rhs) const;
+
 private:
     void operator+=(EKey);
+
 public:
     EKey value;
     bool shift : 1;
     bool control : 1;
     bool meta : 1;
+};
+
+
+template<EKey key>
+struct StaticKeyImpl
+{
+    static constexpr Key fill(Key result)
+    {
+        if constexpr (key == EKey::SHIFT) {
+            Q_ASSERT(!result.shift);
+            result.shift = true;
+        } else if constexpr (key == EKey::CONTROL) {
+            Q_ASSERT(!result.control);
+            result.control = true;
+        } else if constexpr (key == EKey::META) {
+            Q_ASSERT(!result.meta);
+            result.meta = true;
+        } else if constexpr (isChar<key>()) {
+            Q_ASSERT(result.value == EKey::NONE);
+            result.value = key;
+        } else {
+            Q_ASSERT(!"Invalid key");
+        }
+        return result;
+    }
+
+    template<EKey ekey>
+    static constexpr bool isChar()
+    {
+        return static_cast<int>(ekey) >= static_cast<int>(EKey::A) &&
+               static_cast<int>(ekey) <= static_cast<int>(EKey::Z);
+    }
+};
+
+
+template<EKey...> struct StaticKey{};
+
+template<EKey key, EKey... otherKeys>
+struct StaticKey<key, otherKeys...> : StaticKeyImpl<key>
+{
+    inline static const Key result = fill(StaticKey<otherKeys...>::result);
+};
+
+template<EKey key>
+struct StaticKey<key> : StaticKeyImpl<key>
+{
+    inline static const Key result = fill({});
 };
 
 
@@ -209,10 +226,6 @@ private:
     std::vector<NormalOperation> operations;
     KeySequence keySequence;
 };
-
-
-
-class QKeyEvent;
 
 
 class CommandMaster final {

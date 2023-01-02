@@ -160,13 +160,13 @@ enum class CompareResult
 };
 
 
-struct KeySeq {
+struct KeySequence {
     using Keys = std::array<Key, 4>;
 
-    constexpr KeySeq();
+    constexpr KeySequence();
 
     template<typename...T>
-    constexpr KeySeq(T... params)
+    constexpr KeySequence(T... params)
         : keys{params...}
         , length(sizeof...(params))
     {}
@@ -174,7 +174,7 @@ struct KeySeq {
     Keys::const_iterator cbegin() const;
     Keys::const_iterator cend() const;
 
-    CompareResult compare(const KeySeq&) const;
+    CompareResult compare(const KeySequence&) const;
 
     void operator+=(Key);
 
@@ -186,9 +186,6 @@ public:
     Keys keys;
     uint8_t length;
 };
-
-
-using KeySequence = KeySeq;
 
 
 class NormalOperation {
@@ -204,8 +201,6 @@ private:
 
 
 QString toString(const std::vector<EKey>&);
-
-
 
 
 class NormalMode {

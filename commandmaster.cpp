@@ -412,21 +412,21 @@ void PasteFileCommand::pasteWithNewName(QString newName)
 }
 
 
-constexpr KeySeq::KeySeq()
+constexpr KeySequence::KeySequence()
     : length(0)
 {}
 
-KeySeq::Keys::const_iterator KeySeq::cbegin() const
+KeySequence::Keys::const_iterator KeySequence::cbegin() const
 {
     return keys.cbegin();
 }
 
-KeySeq::Keys::const_iterator KeySeq::cend() const
+KeySequence::Keys::const_iterator KeySequence::cend() const
 {
     return keys.cbegin() + length;
 }
 
-CompareResult KeySeq::compare(const KeySeq& rhs) const
+CompareResult KeySequence::compare(const KeySequence& rhs) const
 {
     const size_t len = std::min(length, rhs.length);
     for (size_t i = 0; i < len; ++i)
@@ -437,22 +437,22 @@ CompareResult KeySeq::compare(const KeySeq& rhs) const
     return CompareResult::TRUE;
 }
 
-void KeySeq::operator+=(Key rhs)
+void KeySequence::operator+=(Key rhs)
 {
     keys[length++] = rhs;
 }
 
-void KeySeq::clear()
+void KeySequence::clear()
 {
     length = 0;
 }
 
-bool KeySeq::isEmpty() const
+bool KeySequence::isEmpty() const
 {
     return length == 0;
 }
 
-size_t KeySeq::getLength() const
+size_t KeySequence::getLength() const
 {
     return length;
 }

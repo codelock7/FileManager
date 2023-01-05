@@ -4,11 +4,12 @@
 #include <QStringList>
 #include "searchcontroller.h"
 #include <functional>
+#include <variant>
 
 
 enum class ENormalOperation {
     NONE,
-    RESET,
+    VISUAL_MODE,
     OPEN_PARENT_DIRECTORY,
     OPEN_CURRENT_DIRECTORY,
     SELECT_NEXT,
@@ -60,7 +61,21 @@ struct IStatusDisplayer {
 };
 
 
-struct ICommandMasterOwner : ICurrentDirectoryGetter, IStatusDisplayer, ISearchControllerOwner {
+class IRowInfo {
+public:
+    virtual int getRowCount() const = 0;
+    virtual int getCurrentRow() const = 0;
+};
+
+class IRowSelectionStrategy {
+public:
+    virtual void selectRow(int) = 0;
+};
+
+
+struct ICommandMasterOwner : ICurrentDirectoryGetter, IStatusDisplayer,
+    ISearchControllerOwner, IRowSelectionStrategy, IRowInfo
+{
     virtual QString getCurrentFile() const = 0;
     virtual QString getCurrentDir() const = 0;
     virtual void mkdir(const QString&) = 0;
@@ -68,11 +83,11 @@ struct ICommandMasterOwner : ICurrentDirectoryGetter, IStatusDisplayer, ISearchC
     virtual void setColorSchemeName(const QString&) = 0;
     virtual void openCurrentDirectory() = 0;
     virtual void openParentDirectory() = 0;
-    virtual void selectRow(int) = 0;
-    virtual int getRowCount() const = 0;
-    virtual int getCurrentRow() const = 0;
     virtual void focusToCommandLine(const QString& = {}) = 0;
     virtual void activateFileViewer() = 0;
+    virtual void setMultiSelectionEnabled(bool) = 0;
+    virtual bool isMultiSelectionEnabled() const = 0;
+    virtual bool showQuestion(const QString&) = 0;
 };
 
 
@@ -137,7 +152,7 @@ struct StaticKeyImpl
 };
 
 
-template<EKey...> struct StaticKey{};
+template<EKey...> struct StaticKey;
 
 template<EKey key, EKey... otherKeys>
 struct StaticKey<key, otherKeys...> : StaticKeyImpl<key>
@@ -220,6 +235,11 @@ private:
 };
 
 
+struct SelectionData {
+    std::variant<QString, QVector<QString>> data;
+};
+
+
 class CommandMaster final {
 public:
     using Command = void(CommandMaster::*)(const QStringList&);
@@ -241,6 +261,7 @@ public:
     void switchToCommandMode();
     void switchToSearchMode();
     void switchToFileRenameMode(QString oldName);
+    void switchToVisualMode();
 
     SearchController& getSearchController() { return searchController; }
 

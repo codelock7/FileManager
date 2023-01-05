@@ -4,7 +4,11 @@
 
 QString operator/(const QString& lhs, const QString& rhs)
 {
-    return lhs + QDir::separator() + rhs;
+    QString result;
+    constexpr int separatorSize = 1;
+    result.reserve(lhs.size() + separatorSize + rhs.size());
+    result += lhs;
+    result += QDir::separator();
+    result += rhs;
+    return result;
 }
-
-

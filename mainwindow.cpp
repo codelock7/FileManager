@@ -18,6 +18,7 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
+    , multiRowSelector(*this)
     , commandMaster(*this)
     , commandCompletion(commandMaster)
 {
@@ -55,14 +56,11 @@ MainWindow::MainWindow(QWidget *parent)
     QObject::connect(commandLine, &QLineEdit::returnPressed, this, &MainWindow::onCommandLineEnter);
     QObject::connect(commandLine, &QLineEdit::textEdited, this, &MainWindow::onCommandEdit);
 
-    static auto const eater = new KeyPressEater(
-        std::bind(&MainWindow::handleKeyPress, this, std::placeholders::_1, std::placeholders::_2)
-    );
     model = new QFileSystemModel;
     model->setRootPath(QDir::currentPath());
     QObject::connect(model, &QFileSystemModel::rowsInserted, this, &MainWindow::onRowsInserted);
     fileViewer->setModel(model);
-    fileViewer->installEventFilter(eater);
+    fileViewer->installEventFilter(this);
     fileViewer->setColumnWidth(0, 400);
 }
 
@@ -102,10 +100,10 @@ int MainWindow::getCurrentRow() const
 void MainWindow::keyPressEvent(QKeyEvent* keyEvent)
 {
     QMainWindow::keyPressEvent(keyEvent);
-    handleKeyPress(this, keyEvent);
+    handleKeyPress(keyEvent);
 }
 
-bool MainWindow::handleKeyPress(QObject*, QKeyEvent* keyEvent)
+bool MainWindow::handleKeyPress(QKeyEvent* keyEvent)
 {
     if (keyEvent->type() != QKeyEvent::KeyPress)
         return false;
@@ -178,6 +176,11 @@ bool MainWindow::eventFilter(QObject* object, QEvent* event)
                 return true;
             break;
         }
+    } else if (object == fileViewer) {
+        if (event->type() == QEvent::KeyPress) {
+            if (handleKeyPress(static_cast<QKeyEvent*>(event)))
+                return true;
+        }
     }
     return QObject::eventFilter(object, event);
 }
@@ -207,7 +210,10 @@ void MainWindow::openParentDirectory()
 
 void MainWindow::selectRow(int row)
 {
-    fileViewer->selectRow(row);
+    if (rowSelectionStrategy)
+        rowSelectionStrategy->selectRow(row);
+    else
+        fileViewer->selectRow(row);
 }
 
 int MainWindow::getRowCount() const
@@ -217,7 +223,7 @@ int MainWindow::getRowCount() const
 
 void MainWindow::onCommandLineEnter()
 {
-    commandMaster.handleCommandEnter(getCommandLineString());
+    commandMaster.handleCommandEnter(commandLine->text());
 }
 
 void MainWindow::onCommandEdit()
@@ -294,11 +300,6 @@ bool MainWindow::changeDirectoryIfCan(const QString &dirPath)
     return true;
 }
 
-QString MainWindow::getCommandLineString() const
-{
-    return commandLine->text();
-}
-
 void MainWindow::setRootIndex(const QModelIndex& newRootIndex)
 {
     fileViewer->setRootIndex(newRootIndex);
@@ -324,18 +325,74 @@ void MainWindow::activateFileViewer()
     fileViewer->setFocus();
 }
 
-
-KeyPressEater::KeyPressEater(Handler handler)
-    : keyEventHandler(std::move(handler))
+void MainWindow::setMultiSelectionEnabled(bool enabled)
 {
+    if (enabled)
+        rowSelectionStrategy = multiRowSelector.init();
+    else
+        rowSelectionStrategy = nullptr;
 }
 
-bool KeyPressEater::eventFilter(QObject* object, QEvent* event)
+bool MainWindow::isMultiSelectionEnabled() const
 {
-    if (event->type() != QEvent::KeyPress)
-        return QObject::eventFilter(object, event);
-    auto const keyEvent = static_cast<QKeyEvent*>(event);
-    if (!keyEventHandler(object, keyEvent))
-        return QObject::eventFilter(object, event);
-    return true;
+    return rowSelectionStrategy != nullptr;
+}
+
+bool MainWindow::showQuestion(const QString& question)
+{
+    return QMessageBox::question(this, "Question", question) == QMessageBox::Yes;
+}
+
+QItemSelectionModel* MainWindow::getSelectionModel()
+{
+    return fileViewer->selectionModel();
+}
+
+QModelIndex MainWindow::getIndexForRow(int row) const
+{
+    return model->index(row, 0, fileViewer->rootIndex());
+}
+
+
+
+MultiRowSelector::MultiRowSelector(IFileViewer& newOwner)
+    : owner(&newOwner)
+{}
+
+void MultiRowSelector::selectRow(int row)
+{
+    row = std::clamp(row, 0, owner->getRowCount());
+
+    const QModelIndex& newIndex = owner->getIndexForRow(row);
+
+    if (row < startingRow)
+        setRowSelected(row < owner->getCurrentRow(), newIndex);
+    else if (row > startingRow)
+        setRowSelected(row > owner->getCurrentRow(), newIndex);
+    else
+        deselectCurrentRow();
+
+    owner->getSelectionModel()->setCurrentIndex(newIndex, QItemSelectionModel::NoUpdate);
+}
+
+IRowSelectionStrategy* MultiRowSelector::init()
+{
+    startingRow = owner->getCurrentRow();
+    return this;
+}
+
+void MultiRowSelector::deselectCurrentRow()
+{
+    const auto flag = QItemSelectionModel::Deselect | QItemSelectionModel::Rows;
+    owner->getSelectionModel()->select(owner->getCurrentIndex(), flag);
+}
+
+void MultiRowSelector::setRowSelected(bool selected, const QModelIndex& newIndex)
+{
+    if (selected) {
+        const auto flag = QItemSelectionModel::Select | QItemSelectionModel::Rows;
+        owner->getSelectionModel()->select(newIndex, flag);
+    } else {
+        deselectCurrentRow();
+    }
 }

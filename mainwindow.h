@@ -2,6 +2,7 @@
 
 #include <QMainWindow>
 #include <QFileInfo>
+#include <QItemSelection>
 #include <functional>
 #include <array>
 #include <map>
@@ -21,21 +22,31 @@ class QLabel;
 class QLineEdit;
 
 
-class KeyPressEater : public QObject {
+class IFileViewer : public IRowInfo {
 public:
-    using Handler = std::function<bool(QObject*, QKeyEvent*)>;
-    explicit KeyPressEater(Handler);
-
-protected:
-    bool eventFilter(QObject*, QEvent*) override;
-
-private:
-    Handler keyEventHandler;
+    virtual QItemSelectionModel* getSelectionModel() = 0;
+    virtual QModelIndex getCurrentIndex() const = 0;
+    virtual QModelIndex getIndexForRow(int) const = 0;
 };
 
 
-class MainWindow : public QMainWindow, ICommandMasterOwner
-{
+class MultiRowSelector final : IRowSelectionStrategy {
+public:
+    explicit MultiRowSelector(IFileViewer&);
+    IRowSelectionStrategy* init();
+    void selectRow(int) override;
+
+private:
+    void deselectCurrentRow();
+    void setRowSelected(bool, const QModelIndex&);
+
+private:
+    IFileViewer* owner;
+    int startingRow;
+};
+
+
+class MainWindow : public QMainWindow, ICommandMasterOwner, IFileViewer {
     Q_OBJECT
 
 public:
@@ -51,7 +62,7 @@ protected:
     QFileInfo getCurrentFileInfo() const;
     QString getCurrentDirectory() const override;
     void keyPressEvent(QKeyEvent*) override;
-    bool handleKeyPress(QObject*, QKeyEvent*);
+    bool handleKeyPress(QKeyEvent*);
     bool eventFilter(QObject*, QEvent*) override;
 
 private slots:
@@ -68,17 +79,22 @@ private slots:
 private:
     void completeCommand();
     bool resetCompletionIfEndReached();
-    QModelIndex getCurrentIndex() const;
+    QModelIndex getCurrentIndex() const override;
     void showStatus(const QString&, int secTimeout = 0) override;
     void mkdir(const QString& dirName) override;
     void setColorSchemeName(const QString&) override;
     bool changeDirectoryIfCan(const QString& dirPath) override;
-    QString getCommandLineString() const;
     void setRootIndex(const QModelIndex&);
     void searchForward(const QString&) override;
 
     void focusToCommandLine(const QString& line = {}) override;
     void activateFileViewer() override;
+    void setMultiSelectionEnabled(bool) override;
+    bool isMultiSelectionEnabled() const override;
+    bool showQuestion(const QString&) override;
+
+    QItemSelectionModel* getSelectionModel() override;
+    QModelIndex getIndexForRow(int) const override;
 
 private:
     Ui::MainWindow *ui;
@@ -86,6 +102,8 @@ private:
     QLabel* pathViewer;
     QLineEdit* commandLine;
     QFileSystemModel* model;
+    MultiRowSelector multiRowSelector;
+    IRowSelectionStrategy* rowSelectionStrategy = nullptr;
 
     CommandMaster commandMaster;
     CommandCompletion commandCompletion;

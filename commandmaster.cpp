@@ -73,6 +73,7 @@ CommandMaster::CommandMaster(ICommandMasterOwner& newUi)
 {
     using CommandOwner = CommandMaster;
 
+    normalMode.addCommand({ENormalOperation::VISUAL_MODE, {StaticKey<EKey::V>::result}});
     normalMode.addCommand({ENormalOperation::OPEN_PARENT_DIRECTORY, {StaticKey<EKey::H>::result}});
     normalMode.addCommand({ENormalOperation::OPEN_CURRENT_DIRECTORY, {StaticKey<EKey::L>::result}});
     normalMode.addCommand({ENormalOperation::SELECT_NEXT, {StaticKey<EKey::J>::result}});
@@ -86,6 +87,7 @@ CommandMaster::CommandMaster(ICommandMasterOwner& newUi)
     normalMode.addCommand({ENormalOperation::SEARCH_NEXT, {StaticKey<EKey::N>::result}});
     normalMode.addCommand({ENormalOperation::EXIT, {StaticKey<EKey::CONTROL, EKey::Q>::result}});
 
+    normalOperations[static_cast<size_t>(ENormalOperation::VISUAL_MODE)] = &CommandOwner::switchToVisualMode;
     normalOperations[static_cast<size_t>(ENormalOperation::OPEN_PARENT_DIRECTORY)] = &CommandOwner::openParentDirectory;
     normalOperations[static_cast<size_t>(ENormalOperation::OPEN_CURRENT_DIRECTORY)] = &CommandOwner::openCurrentDirectory;
     normalOperations[static_cast<size_t>(ENormalOperation::SELECT_NEXT)] = &CommandOwner::selectNext;
@@ -174,7 +176,6 @@ void CommandMaster::handleKeyPress(Key key)
             normalMode.addKey(key);
             const NormalMode::Status status = normalMode.handle();
             if (std::get<bool>(status)) {
-                qDebug("lol");
                 const auto& operation = std::get<ENormalOperation>(status);
                 switch (operation) {
                 case ENormalOperation::NONE:
@@ -205,6 +206,10 @@ void CommandMaster::switchToNormalMode()
 {
     qDebug("Normal mode");
     ui->activateFileViewer();
+    if (ui->isMultiSelectionEnabled()) {
+        ui->setMultiSelectionEnabled(false);
+        ui->selectRow(ui->getCurrentRow());
+    }
 }
 
 void CommandMaster::switchToCommandMode()
@@ -239,6 +244,11 @@ void CommandMaster::switchToFileRenameMode(QString oldName)
         pasteFileCommand.pasteWithNewName(newName);
     };
     ui->focusToCommandLine(oldName);
+}
+
+void CommandMaster::switchToVisualMode()
+{
+    ui->setMultiSelectionEnabled(true);
 }
 
 void CommandMaster::exit()
@@ -324,6 +334,8 @@ void CommandMaster::renameCurrent()
 void CommandMaster::removeCurrent()
 {
     const QFileInfo fi(ui->getCurrentFile());
+    if (!ui->showQuestion(QString("Do you want to remove?\n%1").arg(fi.fileName())))
+        return;
     if (fi.isDir())
         QDir(fi.filePath()).removeRecursively();
     else
@@ -517,8 +529,7 @@ constexpr Key::Key()
     , shift(false)
     , control(false)
     , meta(false)
-{
-}
+{}
 
 Key::Key(std::initializer_list<EKey> keys)
     : Key()

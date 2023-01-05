@@ -16,6 +16,9 @@ enum class ENormalOperation {
     SELECT_PREVIOUS,
     SELECT_FIRST,
     SELECT_LAST,
+    SELECT_HIGH,
+    SELECT_LOW,
+    SELECT_MIDDLE,
     DELETE_FILE,
     RENAME_FILE,
     YANK_FILE,
@@ -88,6 +91,7 @@ struct IViView : ICurrentDirectoryGetter, IStatusDisplayer,
     virtual void setMultiSelectionEnabled(bool) = 0;
     virtual bool isMultiSelectionEnabled() const = 0;
     virtual bool showQuestion(const QString&) = 0;
+    virtual bool isRowVisible(int) const = 0;
 };
 
 
@@ -273,6 +277,9 @@ public:
     void selectNext();
     void selectFirst();
     void selectLast();
+    void selectHigh();
+    void selectMiddle();
+    void selectLow();
     void yankFile();
     void pasteFile();
     void searchNext();
@@ -285,6 +292,10 @@ public:
     void openFile(const QStringList& args);
     void makeDirectory(const QStringList& args);
     void setColorScheme(const QStringList&);
+
+    int findHighRow(int sourceRow);
+    int findLowRow(int sourceRow);
+    int findMiddleRow(int sourceRow);
 
 public:
     NormalOperations normalOperations;

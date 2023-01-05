@@ -352,6 +352,14 @@ QModelIndex MainWindow::getIndexForRow(int row) const
     return model->index(row, 0, fileViewer->rootIndex());
 }
 
+bool MainWindow::isRowVisible(int row) const
+{
+    const QModelIndex& rowIndex = getIndexForRow(row);
+    const QRect& rowRect = fileViewer->visualRect(rowIndex);
+    const QRect& viewportRect = fileViewer->viewport()->rect();
+    return viewportRect.contains(rowRect);
+}
+
 
 
 MultiRowSelector::MultiRowSelector(IFileViewer& newOwner)

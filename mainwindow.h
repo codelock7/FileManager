@@ -96,6 +96,8 @@ private:
     QItemSelectionModel* getSelectionModel() override;
     QModelIndex getIndexForRow(int) const override;
 
+    bool isRowVisible(int) const override;
+
 private:
     Ui::MainWindow *ui;
     QTableView* fileViewer;

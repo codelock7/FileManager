@@ -80,6 +80,9 @@ ViModel::ViModel(IViView& newView)
     normalMode.addCommand({ENormalOperation::SELECT_PREVIOUS, {StaticKey<EKey::K>::result}});
     normalMode.addCommand({ENormalOperation::SELECT_FIRST, {StaticKey<EKey::G>::result, StaticKey<EKey::G>::result}});
     normalMode.addCommand({ENormalOperation::SELECT_LAST, {StaticKey<EKey::SHIFT, EKey::G>::result}});
+    normalMode.addCommand({ENormalOperation::SELECT_HIGH, {StaticKey<EKey::SHIFT, EKey::H>::result}});
+    normalMode.addCommand({ENormalOperation::SELECT_LOW, {StaticKey<EKey::SHIFT, EKey::L>::result}});
+    normalMode.addCommand({ENormalOperation::SELECT_MIDDLE, {StaticKey<EKey::SHIFT, EKey::M>::result}});
     normalMode.addCommand({ENormalOperation::DELETE_FILE, {StaticKey<EKey::SHIFT, EKey::D>::result}});
     normalMode.addCommand({ENormalOperation::RENAME_FILE, {StaticKey<EKey::C>::result, StaticKey<EKey::W>::result}});
     normalMode.addCommand({ENormalOperation::YANK_FILE, {StaticKey<EKey::Y>::result, StaticKey<EKey::Y>::result}});
@@ -94,6 +97,9 @@ ViModel::ViModel(IViView& newView)
     normalOperations[static_cast<size_t>(ENormalOperation::SELECT_PREVIOUS)] = &CommandOwner::selectPrevious;
     normalOperations[static_cast<size_t>(ENormalOperation::SELECT_FIRST)] = &CommandOwner::selectFirst;
     normalOperations[static_cast<size_t>(ENormalOperation::SELECT_LAST)] = &CommandOwner::selectLast;
+    normalOperations[static_cast<size_t>(ENormalOperation::SELECT_HIGH)] = &CommandOwner::selectHigh;
+    normalOperations[static_cast<size_t>(ENormalOperation::SELECT_LOW)] = &CommandOwner::selectLow;
+    normalOperations[static_cast<size_t>(ENormalOperation::SELECT_MIDDLE)] = &CommandOwner::selectMiddle;
     normalOperations[static_cast<size_t>(ENormalOperation::DELETE_FILE)] = &CommandOwner::removeCurrent;
     normalOperations[static_cast<size_t>(ENormalOperation::RENAME_FILE)] = &CommandOwner::renameCurrent;
     normalOperations[static_cast<size_t>(ENormalOperation::YANK_FILE)] = &CommandOwner::yankFile;
@@ -306,6 +312,28 @@ void ViModel::selectLast()
     view->selectRow(rowCount - 1);
 }
 
+void ViModel::selectHigh()
+{
+    if (view->getRowCount() == 0)
+        return;
+    const int newRow = findHighRow(view->getCurrentRow());
+    view->selectRow(newRow);
+}
+
+void ViModel::selectMiddle()
+{
+    const int newRow = findMiddleRow(view->getCurrentRow());
+    if (newRow >= 0)
+        view->selectRow(newRow);
+}
+
+void ViModel::selectLow()
+{
+    const int newRow = findLowRow(view->getCurrentRow());
+    if (newRow >= 0)
+        view->selectRow(newRow);
+}
+
 void ViModel::yankFile()
 {
     pasteFileCommand.pathCopy = view->getCurrentFile();
@@ -389,6 +417,37 @@ void ViModel::setColorScheme(const QStringList& args)
         return;
     }
     view->setColorSchemeName(args.back());
+}
+
+int ViModel::findHighRow(int sourceRow)
+{
+    for (int i = sourceRow; i > 0; --i) {
+        if (!view->isRowVisible(i - 1))
+            return i;
+    }
+    return 0;
+}
+
+int ViModel::findLowRow(int sourceRow)
+{
+    const int rowCount = view->getRowCount();
+    if (rowCount == 0)
+        return -1;
+    for (int i = sourceRow; i < rowCount; ++i) {
+        if (!view->isRowVisible(i + 1))
+            return i;
+    }
+    return rowCount - 1;
+}
+
+int ViModel::findMiddleRow(int sourceRow)
+{
+    const int lowRow = findLowRow(sourceRow);
+    if (lowRow == -1)
+        return lowRow;
+    const int highRow = findHighRow(sourceRow);
+    const int result = highRow + ((lowRow - highRow) / 2);
+    return result;
 }
 
 void PasteFileCommand::paste()

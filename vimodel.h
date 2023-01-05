@@ -73,7 +73,7 @@ public:
 };
 
 
-struct ICommandMasterOwner : ICurrentDirectoryGetter, IStatusDisplayer,
+struct IViView : ICurrentDirectoryGetter, IStatusDisplayer,
     ISearchControllerOwner, IRowSelectionStrategy, IRowInfo
 {
     virtual QString getCurrentFile() const = 0;
@@ -91,13 +91,13 @@ struct ICommandMasterOwner : ICurrentDirectoryGetter, IStatusDisplayer,
 };
 
 
-class CommandMaster;
+class ViModel;
 struct PasteFileCommand {
     void paste();
     void pasteWithNewName(QString);
 
 public:
-    CommandMaster* owner;
+    ViModel* owner;
     QString pathCopy;
 };
 
@@ -240,19 +240,19 @@ struct SelectionData {
 };
 
 
-class CommandMaster final {
+class ViModel final {
 public:
-    using Command = void(CommandMaster::*)(const QStringList&);
+    using Command = void(ViModel::*)(const QStringList&);
     using Commands = std::map<QString, Command>;
-    using OperationFunction = void(CommandMaster::*)();
+    using OperationFunction = void(ViModel::*)();
     using NormalOperations = std::array<OperationFunction, static_cast<size_t>(ENormalOperation::COUNT)>;
 
-    explicit CommandMaster(ICommandMasterOwner&);
+    explicit ViModel(IViView&);
 
     Commands::const_iterator cbegin() const;
     Commands::const_iterator cend() const;
 
-    ICommandMasterOwner& getUi();
+    IViView& getUi();
 
     void handleKeyPress(Key);
     void handleCommandEnter(QString);
@@ -290,7 +290,7 @@ public:
     NormalOperations normalOperations;
 
 private:
-    ICommandMasterOwner* ui;
+    IViView* view;
     SearchController searchController;
     Commands commands;
     PasteFileCommand pasteFileCommand;

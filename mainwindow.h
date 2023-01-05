@@ -6,7 +6,7 @@
 #include <functional>
 #include <array>
 #include <map>
-#include "commandmaster.h"
+#include "vimodel.h"
 #include "commandcompletion.h"
 #include "searchcontroller.h"
 
@@ -46,7 +46,7 @@ private:
 };
 
 
-class MainWindow : public QMainWindow, ICommandMasterOwner, IFileViewer {
+class MainWindow : public QMainWindow, IViView, IFileViewer {
     Q_OBJECT
 
 public:
@@ -105,6 +105,6 @@ private:
     MultiRowSelector multiRowSelector;
     IRowSelectionStrategy* rowSelectionStrategy = nullptr;
 
-    CommandMaster commandMaster;
-    CommandCompletion commandCompletion;
+    ViModel viModel;
+    CommandCompletion commandSuggestor;
 };

@@ -31,7 +31,7 @@ set(PROJECT_SOURCES
         main.cpp
         util.h util.cpp
         platform.h platform.cpp
-        commandmaster.h commandmaster.cpp
+        vimodel.h vimodel.cpp
         searchcontroller.h searchcontroller.cpp
         commandcompletion.h commandcompletion.cpp
         mainwindow.cpp mainwindow.h mainwindow.ui

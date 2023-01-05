@@ -1,51 +1,51 @@
 #include "commandcompletion.h"
 
 
-CommandCompletion::CommandCompletion(const CommandMaster& commandMaster)
-    : commandContainer(&commandMaster)
-    , activated(false)
+CommandCompletion::CommandCompletion(const ViModel& newViModel)
+    : viModel(&newViModel)
+    , valid(false)
 {}
 
-bool CommandCompletion::isActivated() const
+void CommandCompletion::setInitialString(const QString& value)
 {
-    return activated;
-}
-
-void CommandCompletion::activate(QString line)
-{
-    Q_ASSERT(!isActivated());
-
-    if (!isOneWordLine(line))
+    initialString = value;
+    if (!isOneWordLine(*initialString))
         return;
-    activated = true;
-    initialString = std::move(line);
-    commandIter = commandContainer->cbegin();
+    nextCommand = viModel->cbegin();
+    valid = true;
 }
 
-QString CommandCompletion::getNextSuggestion()
+bool CommandCompletion::isValid() const
 {
-    Q_ASSERT(isActivated());
+    return valid;
+}
 
-    for (; commandIter != commandContainer->cend(); ++commandIter) {
-        const auto& [name, func] = *commandIter;
-        if (name.startsWith(initialString)) {
-            ++commandIter;
+bool CommandCompletion::isEmpty() const
+{
+    return !initialString.has_value();
+}
+
+QString CommandCompletion::getNext()
+{
+    for (; nextCommand != viModel->cend(); ++nextCommand) {
+        const auto& [name, func] = *nextCommand;
+        if (name.startsWith(*initialString)) {
+            ++nextCommand;
             return name;
         }
     }
-    commandIter = commandContainer->cbegin();
-    return initialString;
+    nextCommand = viModel->cbegin();
+    return *initialString;
 }
 
-void CommandCompletion::deactivate()
+void CommandCompletion::reset()
 {
-    Q_ASSERT(isActivated());
-
-    activated = false;
-    initialString.clear();
+    valid = false;
+    if (initialString.has_value())
+        initialString.reset();
 }
 
-bool CommandCompletion::isOneWordLine(const QString& line) const
+bool CommandCompletion::isOneWordLine(const QString& line)
 {
     if (line.isEmpty())
         return true;

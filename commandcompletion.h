@@ -1,24 +1,25 @@
 #pragma once
-#include "commandmaster.h"
+#include "vimodel.h"
+#include <optional>
 
 
 class CommandCompletion {
 public:
-    using CommandContainer = CommandMaster;
-    using CommandIterator = CommandContainer::Commands::const_iterator;
+    using Commands = ViModel::Commands;
 
-    explicit CommandCompletion(const CommandMaster&);
-    bool isActivated() const;
-    void activate(QString);
-    void deactivate();
-    QString getNextSuggestion();
-
-private:
-    bool isOneWordLine(const QString&) const;
+    explicit CommandCompletion(const ViModel&);
+    void setInitialString(const QString&);
+    bool isValid() const;
+    bool isEmpty() const;
+    QString getNext();
+    void reset();
 
 private:
-    const CommandContainer* commandContainer;
-    QString initialString;
-    CommandIterator commandIter;
-    bool activated;
+    static bool isOneWordLine(const QString&);
+
+private:
+    const ViModel* viModel;
+    std::optional<QString> initialString;
+    Commands::const_iterator nextCommand;
+    bool valid;
 };

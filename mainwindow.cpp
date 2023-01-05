@@ -19,8 +19,8 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
     , multiRowSelector(*this)
-    , commandMaster(*this)
-    , commandCompletion(commandMaster)
+    , viModel(*this)
+    , commandSuggestor(viModel)
 {
     setStyleSheet("background-color: rgb(0, 0, 0); color: rgb(255, 255, 255);");
 
@@ -155,7 +155,7 @@ bool MainWindow::handleKeyPress(QKeyEvent* keyEvent)
         }
         return false;
     }
-    commandMaster.handleKeyPress(k);
+    viModel.handleKeyPress(k);
     return true;
 }
 
@@ -165,9 +165,10 @@ bool MainWindow::eventFilter(QObject* object, QEvent* event)
         switch (event->type()) {
         case QEvent::KeyPress:
             if (static_cast<QKeyEvent*>(event)->key() == Qt::Key_Tab) {
-                if (!commandCompletion.isActivated())
-                    commandCompletion.activate(commandLine->text());
-                commandLine->setText(commandCompletion.getNextSuggestion());
+                if (commandSuggestor.isEmpty())
+                    commandSuggestor.setInitialString(commandLine->text());
+                if (commandSuggestor.isValid())
+                    commandLine->setText(commandSuggestor.getNext());
                 return true;
             }
             break;
@@ -223,15 +224,13 @@ int MainWindow::getRowCount() const
 
 void MainWindow::onCommandLineEnter()
 {
-    commandMaster.handleCommandEnter(commandLine->text());
+    viModel.handleCommandEnter(commandLine->text());
 }
 
 void MainWindow::onCommandEdit()
 {
-    if (commandCompletion.isActivated()) {
-        commandCompletion.deactivate();
-        commandCompletion.activate(commandLine->text());
-    }
+    if (!commandSuggestor.isEmpty())
+        commandSuggestor.reset();
 }
 
 void MainWindow::onRowsInserted(const QModelIndex& parent, int first, int last)

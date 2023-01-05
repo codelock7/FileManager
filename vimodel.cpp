@@ -1,4 +1,4 @@
-#include "commandmaster.h"
+#include "vimodel.h"
 #include "platform.h"
 #include <QDir>
 #include <QFile>
@@ -67,11 +67,11 @@ bool isChar(EKey key)
 }
 
 
-CommandMaster::CommandMaster(ICommandMasterOwner& newUi)
-    : ui(&newUi)
-    , searchController(newUi)
+ViModel::ViModel(IViView& newView)
+    : view(&newView)
+    , searchController(newView)
 {
-    using CommandOwner = CommandMaster;
+    using CommandOwner = ViModel;
 
     normalMode.addCommand({ENormalOperation::VISUAL_MODE, {StaticKey<EKey::V>::result}});
     normalMode.addCommand({ENormalOperation::OPEN_PARENT_DIRECTORY, {StaticKey<EKey::H>::result}});
@@ -112,19 +112,19 @@ CommandMaster::CommandMaster(ICommandMasterOwner& newUi)
     pasteFileCommand.owner = this;
 }
 
-CommandMaster::Commands::const_iterator CommandMaster::cbegin() const
+ViModel::Commands::const_iterator ViModel::cbegin() const
 {
     return commands.cbegin();
 }
 
-CommandMaster::Commands::const_iterator CommandMaster::cend() const
+ViModel::Commands::const_iterator ViModel::cend() const
 {
     return commands.cend();
 }
 
-ICommandMasterOwner &CommandMaster::getUi()
+IViView &ViModel::getUi()
 {
-    return *ui;
+    return *view;
 }
 
 //QString toStringgg(const KeySeq& keys)
@@ -156,7 +156,7 @@ ICommandMasterOwner &CommandMaster::getUi()
 //    return result;
 //}
 
-void CommandMaster::handleKeyPress(Key key)
+void ViModel::handleKeyPress(Key key)
 {
     switch (key.value) {
     case EKey::ESCAPE:
@@ -195,24 +195,24 @@ void CommandMaster::handleKeyPress(Key key)
     }
 }
 
-void CommandMaster::handleCommandEnter(QString line)
+void ViModel::handleCommandEnter(QString line)
 {
     Q_ASSERT(clStrategy);
     clStrategy(std::move(line));
     switchToNormalMode();
 }
 
-void CommandMaster::switchToNormalMode()
+void ViModel::switchToNormalMode()
 {
     qDebug("Normal mode");
-    ui->activateFileViewer();
-    if (ui->isMultiSelectionEnabled()) {
-        ui->setMultiSelectionEnabled(false);
-        ui->selectRow(ui->getCurrentRow());
+    view->activateFileViewer();
+    if (view->isMultiSelectionEnabled()) {
+        view->setMultiSelectionEnabled(false);
+        view->selectRow(view->getCurrentRow());
     }
 }
 
-void CommandMaster::switchToCommandMode()
+void ViModel::switchToCommandMode()
 {
     qDebug("Command mode");
     clStrategy = [&](QString line) {
@@ -222,12 +222,12 @@ void CommandMaster::switchToCommandMode()
         if (args.isEmpty())
             return;
         if (!runIfHas(args))
-            ui->showStatus("Unknown command", 4);
+            view->showStatus("Unknown command", 4);
     };
-    ui->focusToCommandLine();
+    view->focusToCommandLine();
 }
 
-void CommandMaster::switchToSearchMode()
+void ViModel::switchToSearchMode()
 {
     qDebug("Search mode");
     clStrategy = [&](QString line) {
@@ -235,28 +235,28 @@ void CommandMaster::switchToSearchMode()
             return;
         searchController.enterSearchLine(std::move(line));
     };
-    ui->focusToCommandLine();
+    view->focusToCommandLine();
 }
 
-void CommandMaster::switchToFileRenameMode(QString oldName)
+void ViModel::switchToFileRenameMode(QString oldName)
 {
     clStrategy = [&](QString newName) {
         pasteFileCommand.pasteWithNewName(newName);
     };
-    ui->focusToCommandLine(oldName);
+    view->focusToCommandLine(oldName);
 }
 
-void CommandMaster::switchToVisualMode()
+void ViModel::switchToVisualMode()
 {
-    ui->setMultiSelectionEnabled(true);
+    view->setMultiSelectionEnabled(true);
 }
 
-void CommandMaster::exit()
+void ViModel::exit()
 {
     qApp->exit();
 }
 
-bool CommandMaster::runIfHas(const QStringList &args)
+bool ViModel::runIfHas(const QStringList &args)
 {
     auto iter = commands.find(args.first());
     if (iter == commands.end())
@@ -265,76 +265,76 @@ bool CommandMaster::runIfHas(const QStringList &args)
     return true;
 }
 
-void CommandMaster::openCurrentDirectory()
+void ViModel::openCurrentDirectory()
 {
-    ui->openCurrentDirectory();
+    view->openCurrentDirectory();
 }
 
-void CommandMaster::openParentDirectory()
+void ViModel::openParentDirectory()
 {
-    ui->openParentDirectory();
+    view->openParentDirectory();
 }
 
-void CommandMaster::selectPrevious()
+void ViModel::selectPrevious()
 {
-    const int currRow = ui->getCurrentRow();
+    const int currRow = view->getCurrentRow();
     if (currRow == -1) {
-        ui->selectRow(0);
+        view->selectRow(0);
         return;
     }
-    ui->selectRow(currRow - 1);
+    view->selectRow(currRow - 1);
 }
 
-void CommandMaster::selectNext()
+void ViModel::selectNext()
 {
-    const int currRow = ui->getCurrentRow();
+    const int currRow = view->getCurrentRow();
     if (currRow == -1) {
-        ui->selectRow(0);
+        view->selectRow(0);
         return;
     }
-    ui->selectRow(currRow + 1);
+    view->selectRow(currRow + 1);
 }
 
-void CommandMaster::selectFirst()
+void ViModel::selectFirst()
 {
-    ui->selectRow(0);
+    view->selectRow(0);
 }
 
-void CommandMaster::selectLast()
+void ViModel::selectLast()
 {
-    const int rowCount = ui->getRowCount();
-    ui->selectRow(rowCount - 1);
+    const int rowCount = view->getRowCount();
+    view->selectRow(rowCount - 1);
 }
 
-void CommandMaster::yankFile()
+void ViModel::yankFile()
 {
-    pasteFileCommand.pathCopy = ui->getCurrentFile();
+    pasteFileCommand.pathCopy = view->getCurrentFile();
 }
 
-void CommandMaster::pasteFile()
+void ViModel::pasteFile()
 {
     pasteFileCommand.paste();
 }
 
-void CommandMaster::searchNext()
+void ViModel::searchNext()
 {
     searchController.searchNext();
 }
 
-void CommandMaster::renameCurrent()
+void ViModel::renameCurrent()
 {
-    const QFileInfo fi(ui->getCurrentFile());
-    ui->focusToCommandLine(fi.fileName());
+    const QFileInfo fi(view->getCurrentFile());
+    view->focusToCommandLine(fi.fileName());
     clStrategy = [=](QString newName) {
         if (!newName.isEmpty())
             QFile::rename(fi.filePath(), fi.path() / newName);
     };
 }
 
-void CommandMaster::removeCurrent()
+void ViModel::removeCurrent()
 {
-    const QFileInfo fi(ui->getCurrentFile());
-    if (!ui->showQuestion(QString("Do you want to remove?\n%1").arg(fi.fileName())))
+    const QFileInfo fi(view->getCurrentFile());
+    if (!view->showQuestion(QString("Do you want to remove?\n%1").arg(fi.fileName())))
         return;
     if (fi.isDir())
         QDir(fi.filePath()).removeRecursively();
@@ -342,53 +342,53 @@ void CommandMaster::removeCurrent()
         QFile::remove(fi.filePath());
 }
 
-void CommandMaster::createEmptyFile(const QStringList& args)
+void ViModel::createEmptyFile(const QStringList& args)
 {
-    const QString& currDir = ui->getCurrentDirectory();
+    const QString& currDir = view->getCurrentDirectory();
     for (int i = 1; i < args.length(); ++i) {
         QFile newFile(currDir / args[i]);
         newFile.open(QIODevice::WriteOnly);
     }
 }
 
-void CommandMaster::changeDirectory(const QStringList& args)
+void ViModel::changeDirectory(const QStringList& args)
 {
     if (args.size() != 2) {
-        ui->showStatus("Invalid command signature", 4);
+        view->showStatus("Invalid command signature", 4);
         return;
     }
     QString newDirPath = args[1];
     QFileInfo newDirInfo(newDirPath);
     if (newDirInfo.isRelative()) {
-        newDirInfo.setFile(ui->getCurrentDirectory() / newDirPath);
+        newDirInfo.setFile(view->getCurrentDirectory() / newDirPath);
         newDirPath = newDirInfo.absoluteFilePath();
     }
     if (!newDirInfo.exists()) {
-        ui->showStatus("Target directory does not exist", 4);
+        view->showStatus("Target directory does not exist", 4);
         return;
     }
-    if (!ui->changeDirectoryIfCan(newDirPath))
-        ui->showStatus("Unexpected error", 4);
+    if (!view->changeDirectoryIfCan(newDirPath))
+        view->showStatus("Unexpected error", 4);
 }
 
-void CommandMaster::openFile(const QStringList&)
+void ViModel::openFile(const QStringList&)
 {
-    Platform::open(ui->getCurrentFile().toStdWString().c_str());
+    Platform::open(view->getCurrentFile().toStdWString().c_str());
 }
 
-void CommandMaster::makeDirectory(const QStringList& args)
+void ViModel::makeDirectory(const QStringList& args)
 {
     for (int i = 1; i < args.length(); ++i)
-        ui->mkdir(args[i]);
+        view->mkdir(args[i]);
 }
 
-void CommandMaster::setColorScheme(const QStringList& args)
+void ViModel::setColorScheme(const QStringList& args)
 {
     if (args.size() != 2) {
-        ui->showStatus("Invalid command signature", 4);
+        view->showStatus("Invalid command signature", 4);
         return;
     }
-    ui->setColorSchemeName(args.back());
+    view->setColorSchemeName(args.back());
 }
 
 void PasteFileCommand::paste()

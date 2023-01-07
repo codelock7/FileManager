@@ -454,32 +454,30 @@ void PasteFileCommand::paste()
 {
     if (pathCopy.isEmpty())
         return;
-    const QFileInfo fileInfo(pathCopy);
-    const QString& newFileName = fileInfo.fileName();
-    const QString& newFilePath = owner->getUi().getCurrentDirectory() / newFileName;
-    if (QFile::copy(pathCopy, newFilePath))
-        return;
-    if (!fileInfo.exists()) {
-        owner->getUi().showStatus("The file being copied no longer exists", 4);
-    } else if (QFileInfo::exists(newFilePath)) {
-        owner->switchToFileRenameMode(newFileName);
+
+    const std::wstring_view srcPathStr = toWStringView(pathCopy);
+    const std::wstring_view name = getFileName(srcPathStr, '/');
+    const QString currDir = owner->getUi().getCurrentDirectory();
+    const fs::path destPath = gluePath(toWStringView(currDir), name, '/');
+
+    if (fs::exists(destPath)) {
+        owner->switchToFileRenameMode(toQString(name));
         owner->getUi().showStatus("Set a new name for the destination file");
-    } else {
-        owner->getUi().showStatus("Enexpected copy error", 4);
+        return;
     }
+
+    const fs::path srcPath = srcPathStr;
+    if (std::error_code err; (fs::copy(srcPath, destPath, err), err))
+        owner->getUi().showStatus(toQString(err.message()), 4);
 }
 
 void PasteFileCommand::pasteWithNewName(QString newName)
 {
-    const QString& destPath = owner->getUi().getCurrentDirectory() / newName;
-    if (QFile::copy(pathCopy, destPath))
-        return;
-    if (!QFileInfo::exists(pathCopy))
-        owner->getUi().showStatus("The file being copied no longer exists", 4);
-    else if (QFileInfo::exists(destPath))
-        owner->getUi().showStatus("The file being copied with that name already exists", 4);
-    else
-        owner->getUi().showStatus("Unexpected copy error", 4);
+    const QString currDir = owner->getUi().getCurrentDirectory();
+    const fs::path srcPath = toWStringView(pathCopy);
+    const std::wstring destPathStr = toWStringView(currDir) / toWStringView(newName);
+    if (std::error_code err; (fs::copy(srcPath, destPathStr, err), err))
+        owner->getUi().showStatus(toQString(err.message()), 4);
 }
 
 
